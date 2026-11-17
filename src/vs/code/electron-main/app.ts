@@ -157,6 +157,7 @@ import { LLMMessageChannel } from '../../workbench/contrib/cortexide/electron-ma
 import { OllamaInstallerChannel } from '../../workbench/contrib/cortexide/electron-main/ollamaInstallerChannel.js';
 import { MCPChannel } from '../../workbench/contrib/cortexide/electron-main/mcpChannel.js';
 import { HooksRunnerChannel } from '../../workbench/contrib/cortexide/electron-main/hooksRunnerChannel.js';
+import { OpenCursorAgentChannel } from '../../workbench/contrib/cortexide/electron-main/opencursorAgentChannel.js';
 /* eslint-enable local/code-import-patterns */
 
 /**
@@ -1404,6 +1405,9 @@ export class CodeApplication extends Disposable {
 
 		const hooksRunnerChannel = new HooksRunnerChannel();
 		mainProcessElectronServer.registerChannel('void-channel-hooksRunner', hooksRunnerChannel);
+
+		const openCursorAgentChannel = new OpenCursorAgentChannel();
+		mainProcessElectronServer.registerChannel('opencursor-channel-agent', openCursorAgentChannel);
 
 		// Extension Host Debug Broadcasting
 		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));

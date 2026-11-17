@@ -370,6 +370,8 @@ class VoidSettingsService extends Disposable implements ICortexideSettingsServic
 			}
 			// add disableSystemMessage feature
 			if (readS.globalSettings.disableSystemMessage === undefined) readS.globalSettings.disableSystemMessage = false;
+			if (readS.globalSettings.useOpenCursorAgentCore === undefined) readS.globalSettings.useOpenCursorAgentCore = false;
+			if (readS.globalSettings.openCursorUseMcp === undefined) readS.globalSettings.openCursorUseMcp = true;
 
 			// add autoAcceptLLMChanges feature
 			if (readS.globalSettings.autoAcceptLLMChanges === undefined) readS.globalSettings.autoAcceptLLMChanges = false;

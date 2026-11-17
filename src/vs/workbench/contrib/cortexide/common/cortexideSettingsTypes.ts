@@ -520,6 +520,10 @@ export type GlobalSettings = {
 	enableModelFallback?: boolean; // When the active model errors, repeatedly fails its tool calls, or hits the step limit, automatically retry the task on the best OTHER configured model — preferring a capable cloud model when one is configured. Honors routingPolicy 'local-only' (never leaves local). (default: true)
 	enableAutoCompaction?: boolean; // Auto-summarize older messages when an AGENT/PLAN run nears the model's context window, so long runs continue instead of overflowing (default: false)
 	enableLifecycleHooks?: boolean; // Run user-configured .cortexide/hooks.json commands at agent lifecycle events (pre-tool/post-tool/agent-stop) (default: false)
+	/** When true, Chat uses monorepo agent-core (dist/opencursor-agent.mjs) instead of the native Cortex agent loop. */
+	useOpenCursorAgentCore?: boolean;
+	/** When OpenCursor agent-core is on: connect MCP servers from data/mcp.json (default true). */
+	openCursorUseMcp?: boolean;
 	// Audit log settings
 	audit?: {
 		enable?: boolean; // Enable audit logging (default: false)
@@ -592,6 +596,8 @@ export const defaultGlobalSettings: GlobalSettings = {
 	enableModelFallback: true, // Auto-failover to the best other configured model when the current one errors or stalls (stays local under routingPolicy 'local-only')
 	enableAutoCompaction: false, // Opt-in: summarize old agent-run messages near the context limit
 	enableLifecycleHooks: false, // Opt-in: run .cortexide/hooks.json commands at agent lifecycle events
+	useOpenCursorAgentCore: false,
+	openCursorUseMcp: true,
 	enableYOLOMode: false, // YOLO mode disabled by default (requires explicit opt-in)
 	yoloRiskThreshold: 0.2, // Auto-apply edits with risk < 0.2
 	yoloConfidenceThreshold: 0.7, // Auto-apply edits with confidence > 0.7

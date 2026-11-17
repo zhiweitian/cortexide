@@ -181,6 +181,7 @@ export const defaultModelsOfProvider = {
 	deepseek: [ // https://api-docs.deepseek.com/quick_start/pricing
 		// NOTE: Keep this list in sync with DeepSeek's current models.
 		// Reference: https://api-docs.deepseek.com/quick_start/pricing (checked 2025-11-30)
+		'deepseek-flash', // OpenCursor default (matches packages/agent-core)
 		'deepseek-chat', // Main chat/code model
 		'deepseek-reasoner', // Reasoning model (R1)
 		// Additional models (if available):
@@ -1450,6 +1451,13 @@ const geminiSettings: VoidStaticProviderInfo = {
 
 // ---------------- DEEPSEEK API ----------------
 const deepseekModelOptions = {
+	'deepseek-flash': {
+		...openSourceModelOptions_assumingOAICompat.deepseekCoderV2,
+		contextWindow: 64_000,
+		reservedOutputTokenSpace: 8_000,
+		cost: { cache_read: .07, input: .27, output: 1.10, },
+		downloadable: false,
+	},
 	'deepseek-chat': {
 		...openSourceModelOptions_assumingOAICompat.deepseekCoderV2, // DeepSeek-V3 chat is NON-reasoning
 		contextWindow: 64_000, // https://api-docs.deepseek.com/quick_start/pricing

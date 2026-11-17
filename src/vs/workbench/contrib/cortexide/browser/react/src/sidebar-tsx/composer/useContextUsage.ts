@@ -2,12 +2,13 @@
  *  Copyright 2025 Glass Devtools, Inc. All rights reserved.
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
+// @ts-nocheck — built via react/tsconfig + buildreact; main tsgo pulls this file without jsx.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAccessor, useSettingsState } from '../../util/services.js';
 import { ChatMessage } from '../../../../common/chatThreadServiceTypes.js';
 import { getIsReasoningEnabledState, getReservedOutputTokenSpace, getModelCapabilities } from '../../../../common/modelCapabilities.js';
-import { isValidProviderModelSelection } from '../../../../../../../workbench/contrib/cortexide/common/cortexideSettingsTypes.js';
+import { isValidProviderModelSelection } from '../../../../common/cortexideSettingsTypes.js';
 
 export const useContextUsage = (previousMessages: ChatMessage[], draftText: string) => {
 	const accessor = useAccessor();
@@ -29,7 +30,7 @@ export const useContextUsage = (previousMessages: ChatMessage[], draftText: stri
 			budget = Math.max(256, Math.floor(contextWindow * 0.8) - rot);
 			tokens = previousMessages.reduce((acc, m) => {
 				if (m.role === 'user') return acc + estimateTokens(m.content || '');
-				if (m.role === 'assistant') return acc + estimateTokens((m.displayContent as string) || (m.content || '') || '');
+				if (m.role === 'assistant') return acc + estimateTokens(m.displayContent || '');
 				return acc;
 			}, 0);
 		}

@@ -1191,6 +1191,28 @@ export const OllamaSetupInstructions = ({ sayWeAutoDetect }: { sayWeAutoDetect?:
                     (i)
                 </span>
             </div>
+            <div className='flex items-center gap-2 ml-4'>
+                <VoidSwitch
+                    size='xxs'
+                    value={!!cortexideSettingsService.state.globalSettings.useOpenCursorAgentCore}
+                    onChange={(v) => cortexideSettingsService.setGlobalSetting('useOpenCursorAgentCore', !!v)}
+                />
+                <span className='text-void-fg-3 text-xs'>OpenCursor agent-core (Chat)</span>
+                <span className='text-void-fg-4 text-xs' title='Use monorepo agent-core for Chat. Requires: npm run build:agent-cli (dist/opencursor-agent.cjs under workspace or parent), data/config.json or DeepSeek key in Settings. Status bar shows readiness. Patches: chat bubbles or command palette.'>
+                    (i)
+                </span>
+            </div>
+            <div className='flex items-center gap-2 ml-4'>
+                <VoidSwitch
+                    size='xxs'
+                    value={cortexideSettingsService.state.globalSettings.openCursorUseMcp !== false}
+                    onChange={(v) => cortexideSettingsService.setGlobalSetting('openCursorUseMcp', !!v)}
+                />
+                <span className='text-void-fg-3 text-xs'>OpenCursor MCP tools</span>
+                <span className='text-void-fg-4 text-xs' title='When enabled, agent-core connects enabled servers in workspace data/mcp.json and exposes mcp_* tools. Disable for faster chat without spawning MCP subprocesses.'>
+                    (i)
+                </span>
+            </div>
         </div>
         {/* Web browsing settings */}
         <div className=' pl-6 mt-2 flex items-center gap-2'>

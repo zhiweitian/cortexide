@@ -7,7 +7,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Pencil, X, Check, ChevronRight, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Undo, Undo2, Ban, AlertTriangle } from 'lucide-react';
 import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useSettingsState, useFullChatThreadsStreamState } from '../../util/services.js';
 import { ChatMarkdownRender, ChatMessageLocation } from '../../markdown/ChatMarkdownRender.js';
-import { ChatMessage, CheckpointEntry, PlanMessage, ReviewMessage, PlanStep, StepStatus, PlanApprovalState } from '../../../../common/chatThreadServiceTypes.js';
+import { ChatMessage, CheckpointEntry, PlanMessage, ReviewMessage, PlanStep, StepStatus, PlanApprovalState, OpenCursorToolMessage } from '../../../../common/chatThreadServiceTypes.js';
+import { OpenCursorToolBubble } from './OpenCursorToolBubble.js';
 import { BuiltinToolName, ToolName } from '../../../../common/toolsServiceTypes.js';
 import { isABuiltinToolName } from '../../../../common/prompt/prompts.js';
 import ErrorBoundary from '../ErrorBoundary.js';
@@ -677,6 +678,10 @@ const _ChatBubble = React.memo(({ threadId, chatMessage, currCheckpointIdx, isCo
 					</div> : null}
 			</>
 		return null
+	}
+
+	else if (role === 'opencursor_tool') {
+		return <OpenCursorToolBubble message={chatMessage as OpenCursorToolMessage} isCheckpointGhost={isCheckpointGhost} threadId={threadId} messageIdx={messageIdx} />
 	}
 
 	else if (role === 'interrupted_streaming_tool') {

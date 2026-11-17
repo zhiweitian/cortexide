@@ -34,6 +34,13 @@ import './media/cortexide.css'
 // update (frontend part, also see platform/)
 import './cortexideUpdateActions.js'
 
+// OpenCursor monorepo agent-core bridge (experimental)
+import '../common/opencursorAgentService.js'
+import '../common/opencursorPatchService.js'
+import './opencursorAgentActions.js'
+import './opencursorPatchActions.js'
+import './opencursorStatusBar.js'
+
 // privacy report (Phase 8): "what can leave my machine" command
 import './cortexidePrivacyReportActions.js'
 // audit log (Phase 8): "Show Audit Log" view of the tamper-evident dangerous-action record

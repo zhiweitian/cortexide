@@ -77,6 +77,11 @@ import { TextEdit } from '../../../../editor/common/core/edits/textEdit.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../nls.js';
 import { IAuditLogService } from '../common/auditLogService.js';
+import { IOpenCursorAgentService } from '../common/opencursorAgentService.js';
+import { IOpenCursorPatchService } from '../common/opencursorPatchService.js';
+import { openOpenCursorPatchDiffWithServices, patchFromRun } from './opencursorPatchHelpers.js';
+import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 
 
 // related to retrying when LLM message has error
@@ -372,6 +377,9 @@ export interface IChatThreadService {
 	/** Phase 6 (Skills): names of the currently-discovered skills (for slash-command discoverability). */
 	listSkillNames(): string[];
 	dismissStreamError(threadId: string): void;
+	updateOpenCursorToolPatchStatus(threadId: string, messageIdx: number, status: 'accepted' | 'rejected'): void;
+	syncOpenCursorPatchStatus(runId: string, patchId: string, status: 'accepted' | 'rejected', patchPathHint?: string): void;
+	previewOpenCursorPatch(runId: string, patchId: string): Promise<string | undefined>;
 
 	// call to edit a message
 	editUserMessageAndStreamResponse({ userMessage, messageIdx, threadId }: { userMessage: string, messageIdx: number, threadId: string }): Promise<void>;
@@ -475,6 +483,10 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		@ICortexideHooksService private readonly _hooksService: ICortexideHooksService,
 		@IBackgroundAgentsService private readonly _backgroundAgentsService: IBackgroundAgentsService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+		@IOpenCursorAgentService private readonly _openCursorAgentService: IOpenCursorAgentService,
+		@IOpenCursorPatchService private readonly _openCursorPatchService: IOpenCursorPatchService,
+		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super()
 		// Register the streaming-RAF cancellation ONCE (was re-registered per batch -> unbounded growth).
@@ -4818,9 +4830,9 @@ Output ONLY the JSON, no other text. Start with { and end with }.`
 
 					const toolCompletion = classifyCompletionState({
 						toolCall: { name: toolCall.name },
-						completionSignaled,
-						interrupted,
-						awaitingUserApproval,
+						completionSignaled: completionSignaled ?? false,
+						interrupted: interrupted ?? false,
+						awaitingUserApproval: awaitingUserApproval ?? false,
 						fileReadLimitExceeded: false,
 						readFileLimitReached: false,
 						synthFired: false,
@@ -4877,7 +4889,7 @@ Output ONLY the JSON, no other text. Start with { and end with }.`
 						maxConsecutiveToolErrors,
 						lastToolMessageType: loopLastType,
 						toolCallDispatched: true,
-						awaitingUserApproval,
+						awaitingUserApproval: awaitingUserApproval ?? false,
 						canEscalate: toolErrEscDec.shouldCallEscalate,
 					})
 					const toolErrorCountForMessage = postToolDec.action === 'escalate-tool-errors'
@@ -5552,6 +5564,207 @@ We only need to do it for files that were edited since `from`, ie files between 
 		this._setStreamState(threadId, undefined)
 	}
 
+	updateOpenCursorToolPatchStatus(threadId: string, messageIdx: number, status: 'accepted' | 'rejected'): void {
+		const thread = this.state.allThreads[threadId]
+		if (!thread) return
+		const msg = thread.messages[messageIdx]
+		if (!msg || msg.role !== 'opencursor_tool') return
+		this._editMessageInThread(threadId, messageIdx, { ...msg, patchStatus: status })
+	}
+
+	syncOpenCursorPatchStatus(runId: string, patchId: string, status: 'accepted' | 'rejected', patchPathHint?: string): void {
+		const folder = this._workspaceContextService.getWorkspace().folders[0]
+		for (const [threadId, thread] of Object.entries(this.state.allThreads)) {
+			for (let idx = 0; idx < thread.messages.length; idx++) {
+				const msg = thread.messages[idx]
+				if (msg.role !== 'opencursor_tool') {
+					continue
+				}
+				if (msg.runId === runId && msg.patchId === patchId && msg.patchStatus === 'pending') {
+					this._editMessageInThread(threadId, idx, { ...msg, patchStatus: status })
+					const rel = msg.patchPath || patchPathHint
+					if (status === 'accepted' && folder && rel) {
+						this._addToolEditCheckpoint({ threadId, uri: URI.joinPath(folder.uri, rel) })
+					}
+				}
+			}
+		}
+	}
+
+	async previewOpenCursorPatch(runId: string, patchId: string): Promise<string | undefined> {
+		const folder = this._workspaceContextService.getWorkspace().folders[0]
+		if (!folder) {
+			return 'Open a workspace folder first.'
+		}
+		const detail = await this._openCursorPatchService.patch({ workspaceRoot: folder.uri.fsPath, op: 'get', runId })
+		if (!detail.ok || !detail.run) {
+			return detail.error ?? 'Failed to load patch run'
+		}
+		const p = patchFromRun(detail.run, patchId)
+		if (!p) {
+			return 'Patch not found'
+		}
+		await openOpenCursorPatchDiffWithServices(p.path, p.oldContent ?? '', p.newContent ?? '', {
+			untitled: this._untitledTextEditorService,
+			commands: this._commandService,
+			langService: this._languageService,
+			workspaceFolder: folder.uri,
+		})
+		return undefined
+	}
+
+	private async _runOpenCursorAgentCoreBridge({ threadId, message }: { threadId: string; message: string }): Promise<void> {
+		const folder = this._workspaceContextService.getWorkspace().folders[0]
+		if (!folder) {
+			this._setStreamState(threadId, { error: 'Open a workspace folder to use OpenCursor agent-core.' })
+			return
+		}
+
+		const seenStepTools = new Set<string>()
+		let activeRunId: string | undefined
+		let userAborted = false
+		const onStepSub = this._openCursorAgentService.onStep((evt) => {
+			if (evt.type === 'run') {
+				activeRunId = evt.runId
+				return
+			}
+			if (evt.type === 'llm') {
+				this._setStreamState(threadId, {
+					isRunning: 'LLM',
+					llmInfo: {
+						displayContentSoFar: evt.text,
+						reasoningSoFar: '',
+						toolCallSoFar: null,
+					},
+					interrupt: Promise.resolve(() => {
+						userAborted = true
+						void this._openCursorAgentService.abort()
+					}),
+				})
+				return
+			}
+			if (evt.type === 'tool_start') {
+				this._setStreamState(threadId, {
+					isRunning: 'LLM',
+					llmInfo: {
+						displayContentSoFar: `Running ${evt.tool}…`,
+						reasoningSoFar: '',
+						toolCallSoFar: {
+							name: evt.tool as ToolName,
+							isDone: false,
+							rawParams: JSON.stringify(evt.args ?? {}),
+						},
+					},
+					interrupt: Promise.resolve(() => {
+						userAborted = true
+						void this._openCursorAgentService.abort()
+					}),
+				})
+				return
+			}
+			const { step } = evt
+			const stepKey = `${step.tool}:${JSON.stringify(step.args)}:${step.out.slice(0, 32)}`
+			if (seenStepTools.has(stepKey)) {
+				return
+			}
+			seenStepTools.add(stepKey)
+			this._addMessageToThread(threadId, {
+				role: 'opencursor_tool',
+				id: generateUuid(),
+				tool: step.tool,
+				args: step.args ?? {},
+				output: step.out ?? '',
+				runId: activeRunId,
+				patchId: step.patchId,
+				patchPath: step.patchPath,
+				patchStatus: step.patchId ? 'pending' : undefined,
+			})
+			this._setStreamState(threadId, {
+				isRunning: 'tool',
+				llmInfo: {
+					displayContentSoFar: '',
+					reasoningSoFar: '',
+					toolCallSoFar: { name: step.tool, isDone: true, rawParams: JSON.stringify(step.args ?? {}) },
+				},
+			})
+		})
+
+		this._setStreamState(threadId, {
+			isRunning: 'preparing',
+			llmInfo: {
+				displayContentSoFar: 'Running OpenCursor agent-core…',
+				reasoningSoFar: '',
+				toolCallSoFar: null,
+			},
+			interrupt: Promise.resolve(() => {
+				userAborted = true
+				void this._openCursorAgentService.abort()
+			}),
+		})
+
+		try {
+			const deepseek = this._settingsService.state.settingsOfProvider.deepseek
+			const gs = this._settingsService.state.globalSettings
+			const result = await this._openCursorAgentService.run({
+				workspaceRoot: folder.uri.fsPath,
+				message,
+				reviewWrites: true,
+				useMcp: gs.openCursorUseMcp !== false,
+				deepseekApiKey: deepseek?.apiKey,
+				deepseekEndpoint: deepseek?.endpoint,
+			})
+			if (!result.ok) {
+				if (userAborted || result.error === 'aborted') {
+					this._setStreamState(threadId, undefined)
+					return
+				}
+				this._setStreamState(threadId, { error: result.error ?? 'OpenCursor agent-core failed' })
+				return
+			}
+			if (userAborted) {
+				this._setStreamState(threadId, undefined)
+				return
+			}
+			if (result.runId) {
+				activeRunId = result.runId
+			}
+			// Backfill steps if progress events were missed
+			for (const step of result.steps ?? []) {
+				const stepKey = `${step.tool}:${JSON.stringify(step.args)}:${step.out.slice(0, 32)}`
+				if (seenStepTools.has(stepKey)) {
+					continue
+				}
+				seenStepTools.add(stepKey)
+				this._addMessageToThread(threadId, {
+					role: 'opencursor_tool',
+					id: generateUuid(),
+					tool: step.tool,
+					args: step.args ?? {},
+					output: step.out ?? '',
+					runId: activeRunId,
+					patchId: step.patchId,
+					patchPath: step.patchPath,
+					patchStatus: step.patchId ? 'pending' : undefined,
+				})
+			}
+			let displayContent = result.text ?? ''
+			const pending = (result.patches ?? []).filter(p => p.status === 'pending')
+			if (pending.length) {
+				displayContent += `\n\n**${pending.length} patch(es) pending.** Expand tool rows above or use command palette: OpenCursor: Review pending patches.`
+			}
+			this._addMessageToThread(threadId, {
+				role: 'assistant',
+				displayContent,
+				reasoning: '',
+				anthropicReasoning: null,
+			})
+			this._setStreamState(threadId, undefined)
+		} catch (e) {
+			this._setStreamState(threadId, { error: getErrorMessage(e) })
+		} finally {
+			onStepSub.dispose()
+		}
+	}
 
 	private async _addUserMessageAndStreamResponse({ userMessage, _chatSelections, threadId, images, pdfs, noPlan, displayContent }: { userMessage: string, _chatSelections?: StagingSelectionItem[], threadId: string, images?: ChatImageAttachment[], pdfs?: ChatPDFAttachment[], noPlan?: boolean, displayContent?: string }) {
 		const thread = this.state.allThreads[threadId]
@@ -5630,6 +5843,15 @@ We only need to do it for files that were edited since `from`, ie files between 
 			},
 			interrupt: preparationInterruptor
 		})
+
+		if (this._settingsService.state.globalSettings.useOpenCursorAgentCore) {
+			if ((images?.length ?? 0) > 0 || (pdfs?.length ?? 0) > 0) {
+				this._notificationService.warn('OpenCursor agent-core engine: image/PDF attachments not supported yet; using native agent.');
+			} else {
+				await this._runOpenCursorAgentCoreBridge({ threadId, message: userMessageContent })
+				return
+			}
+		}
 
 		// Check if user selected "Auto" mode
 		const userModelSelection = this._currentModelSelectionProps().modelSelection

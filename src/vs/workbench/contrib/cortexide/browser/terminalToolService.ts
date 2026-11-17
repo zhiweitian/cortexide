@@ -53,13 +53,13 @@ export const ITerminalToolService = createDecorator<ITerminalToolService>('Termi
 
 
 export const persistentTerminalNameOfId = (id: string) => {
-if (id === '1') return 'Cortex Agent'
-return `Cortex Agent (${id})`
+if (id === '1') return 'OpenCursor Agent'
+return `OpenCursor Agent (${id})`
 }
 export const idOfPersistentTerminalName = (name: string) => {
-if (name === 'Cortex Agent') return '1'
+if (name === 'OpenCursor Agent') return '1'
 
-const match = name.match(/Cortex Agent \((\d+)\)/)
+const match = name.match(/OpenCursor Agent \((\d+)\)/)
 	if (!match) return null
 	if (Number.isInteger(match[1]) && Number(match[1]) >= 1) return match[1]
 	return null

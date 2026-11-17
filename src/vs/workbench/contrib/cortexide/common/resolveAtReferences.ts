@@ -87,11 +87,11 @@ export const resolveAtReferencesInMessage = async ({
 					if (!existing.has(key)) {
 						existing.add(key);
 						await chatThreadsService.addNewStagingSelection({
-							type: 'File',
+							type: 'CodeSelection',
 							uri: activeResource,
 							language: languageService.guessLanguageIdByFilepathOrFirstLine(activeResource) || '',
 							state: { wasAddedAsCurrentFile: false },
-							range: sel,
+							range: [sel.startLineNumber, sel.endLineNumber],
 						});
 					}
 				} else {
@@ -129,11 +129,11 @@ export const resolveAtReferencesInMessage = async ({
 									if (!existing.has(key)) {
 										existing.add(key);
 										await chatThreadsService.addNewStagingSelection({
-											type: 'File',
+											type: 'CodeSelection',
 											uri,
 											language: languageService.guessLanguageIdByFilepathOrFirstLine(uri) || '',
 											state: { wasAddedAsCurrentFile: false },
-											range,
+											range: [range.startLineNumber, range.endLineNumber],
 										});
 									}
 								}

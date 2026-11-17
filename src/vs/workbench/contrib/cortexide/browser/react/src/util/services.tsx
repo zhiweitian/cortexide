@@ -61,6 +61,7 @@ import { ILocalSetupService } from '../../../../common/localSetupService.js'
 import { IOllamaInstallerService } from '../../../../common/ollamaInstallerService.js'
 import { ICortexideI18nService, SupportedLocale } from '../../../../common/i18n/i18nService.js'
 import { ICortexideRulesService, ProjectRule } from '../../../../common/cortexideRulesService.js'
+import { IOpenCursorPatchService } from '../../../../common/opencursorPatchService.js'
 
 
 // normally to do this you'd use a useEffect that calls .onDidChangeState(), but useEffect mounts too late and misses initial state changes
@@ -244,6 +245,7 @@ const getReactAccessor = (accessor: ServicesAccessor) => {
 			ICortexideSettingsService: accessor.get(ICortexideSettingsService),
 			IEditCodeService: accessor.get(IEditCodeService),
 			IChatThreadService: accessor.get(IChatThreadService),
+			IOpenCursorPatchService: accessor.get(IOpenCursorPatchService),
 
 			IInstantiationService: accessor.get(IInstantiationService),
 			ICodeEditorService: accessor.get(ICodeEditorService),

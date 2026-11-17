@@ -33,6 +33,19 @@ export type DecorativeCanceledTool = {
 	mcpServerName: string | undefined; // the server name at the time of the call
 }
 
+/** Tool step from monorepo agent-core when Chat uses OpenCursor engine. */
+export type OpenCursorToolMessage = {
+	role: 'opencursor_tool';
+	id: string;
+	tool: string;
+	args: Record<string, string>;
+	output: string;
+	runId?: string;
+	patchId?: string;
+	patchPath?: string;
+	patchStatus?: 'pending' | 'accepted' | 'rejected';
+}
+
 
 // checkpoints
 export type CheckpointEntry = {
@@ -147,6 +160,7 @@ export type ChatMessage =
 		anthropicReasoning: AnthropicReasoning[] | null; // anthropic reasoning
 	}
 	| ToolMessage<ToolName>
+	| OpenCursorToolMessage
 	| DecorativeCanceledTool
 	| CheckpointEntry
 	| PlanMessage

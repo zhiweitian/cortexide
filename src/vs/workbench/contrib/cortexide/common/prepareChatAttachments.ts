@@ -28,17 +28,19 @@ export type PDFAttachmentDraft = {
 	uploadStatus?: string;
 };
 
+const draftBytes = (data: string): Uint8Array => new TextEncoder().encode(data);
+
 export const toChatImageAttachments = (attachments: ImageAttachmentDraft[]): ChatImageAttachment[] =>
 	attachments
 		.filter(att => att.uploadStatus === 'success' || !att.uploadStatus)
 		.map(att => ({
 			id: att.id,
-			data: att.data,
-			mimeType: att.mimeType,
+			data: draftBytes(att.data),
+			mimeType: att.mimeType as ChatImageAttachment['mimeType'],
 			filename: att.filename,
-			width: att.width,
-			height: att.height,
-			size: att.size,
+			width: att.width ?? 0,
+			height: att.height ?? 0,
+			size: att.size ?? att.data.length,
 		}));
 
 export const toChatPDFAttachments = (attachments: PDFAttachmentDraft[]): ChatPDFAttachment[] =>
@@ -46,9 +48,9 @@ export const toChatPDFAttachments = (attachments: PDFAttachmentDraft[]): ChatPDF
 		.filter(att => att.uploadStatus !== 'failed')
 		.map(att => ({
 			id: att.id,
-			data: att.data,
+			data: draftBytes(att.data),
 			filename: att.filename,
-			size: att.size,
+			size: att.size ?? att.data.length,
 			pageCount: att.pageCount,
 			selectedPages: att.selectedPages,
 			extractedText: att.extractedText,
