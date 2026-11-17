@@ -86,12 +86,13 @@ export async function reloadOpenCursorPatchedFile(
 	modelService: IModelService,
 ): Promise<void> {
 	const uri = URI.joinPath(workspaceFolder, relPath);
+	const model = modelService.getModel(uri);
 	if (!(await fileService.exists(uri))) {
+		if (model) model.setValue('');
 		return;
 	}
 	const disk = await fileService.readFile(uri);
 	const text = disk.value.toString();
-	const model = modelService.getModel(uri);
 	if (model) {
 		model.setValue(text);
 	}

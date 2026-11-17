@@ -51,6 +51,8 @@ export type OpenCursorToolMessage = {
 export type CheckpointEntry = {
 	role: 'checkpoint';
 	type: 'user_edit' | 'tool_edit';
+	/** Set when this row is an OpenCursor agent-core run. Click restores that run's snapshot. */
+	openCursorRunId?: string;
 	voidFileSnapshotOfURI: { [fsPath: string]: CortexideFileSnapshot | undefined };
 
 	userModifications: {

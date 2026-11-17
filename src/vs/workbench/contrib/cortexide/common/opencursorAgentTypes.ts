@@ -42,7 +42,7 @@ export type OpenCursorAgentProgressEvent =
 	| { type: 'llm'; text: string }
 	| { type: 'tool_start'; tool: string; args: Record<string, string> };
 
-export type OpenCursorPatchOp = 'list' | 'accept' | 'reject' | 'get';
+export type OpenCursorPatchOp = 'list' | 'accept' | 'reject' | 'get' | 'restore' | 'reapply';
 
 export interface OpenCursorPatchRequest {
 	readonly workspaceRoot: string;
@@ -63,4 +63,7 @@ export interface OpenCursorPatchResult {
 	readonly runs?: OpenCursorPatchListItem[];
 	readonly patch?: { id: string; path: string; status: string };
 	readonly run?: unknown;
+	readonly restored?: number;
+	readonly paths?: string[];
+	readonly at?: 'before' | 'after';
 }

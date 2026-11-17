@@ -131,8 +131,15 @@ export class OpenCursorAgentChannel implements IServerChannel {
 		if (!spawned.ok) {
 			return { ok: false, error: spawned.error };
 		}
-		const data = spawned.data as { runs?: OpenCursorPatchResult['runs']; patch?: OpenCursorPatchResult['patch']; run?: unknown };
-		return { ok: true, runs: data.runs, patch: data.patch, run: data.run };
+		const data = spawned.data as {
+			runs?: OpenCursorPatchResult['runs'];
+			patch?: OpenCursorPatchResult['patch'];
+			run?: unknown;
+			restored?: number;
+			paths?: string[];
+			at?: 'before' | 'after';
+		};
+		return { ok: true, runs: data.runs, patch: data.patch, run: data.run, restored: data.restored, paths: data.paths, at: data.at };
 	}
 
 	private _emitProgressLines(buffer: string): string {

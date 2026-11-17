@@ -79,7 +79,7 @@ import { localize } from '../../../../nls.js';
 import { IAuditLogService } from '../common/auditLogService.js';
 import { IOpenCursorAgentService } from '../common/opencursorAgentService.js';
 import { IOpenCursorPatchService } from '../common/opencursorPatchService.js';
-import { openOpenCursorPatchDiffWithServices, patchFromRun } from './opencursorPatchHelpers.js';
+import { openOpenCursorPatchDiffWithServices, patchFromRun, reloadOpenCursorPatchedFile } from './opencursorPatchHelpers.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 
@@ -393,6 +393,8 @@ export interface IChatThreadService {
 
 	// jump to history
 	jumpToCheckpointBeforeMessageIdx(opts: { threadId: string, messageIdx: number, jumpToUserModified: boolean }): void;
+
+	toggleOpenCursorCheckpoint(runId: string): Promise<void>;
 
 	// Plan management methods
 	approvePlan(opts: { threadId: string, messageIdx: number }): void;
@@ -5518,6 +5520,21 @@ We only need to do it for files that were edited since `from`, ie files between 
 		this._setThreadState(threadId, { currCheckpointIdx: toIdx })
 	}
 
+	async toggleOpenCursorCheckpoint(runId: string): Promise<void> {
+		const folder = this._workspaceContextService.getWorkspace().folders[0]
+		if (!folder) return
+		const detail = await this._openCursorPatchService.patch({ workspaceRoot: folder.uri.fsPath, op: 'get', runId })
+		const restored = Boolean((detail.run as { restored?: boolean } | undefined)?.restored)
+		const result = await this._openCursorPatchService.patch({
+			workspaceRoot: folder.uri.fsPath,
+			op: restored ? 'reapply' : 'restore',
+			runId,
+		})
+		for (const rel of result.paths ?? []) {
+			await reloadOpenCursorPatchedFile(folder.uri, rel, this._fileService, this._modelService)
+		}
+	}
+
 
 	private _wrapRunAgentToNotify(p: Promise<void>, threadId: string) {
 		const notify = ({ error }: { error: string | null }) => {
@@ -5573,7 +5590,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 	}
 
 	syncOpenCursorPatchStatus(runId: string, patchId: string, status: 'accepted' | 'rejected', patchPathHint?: string): void {
-		const folder = this._workspaceContextService.getWorkspace().folders[0]
+		void patchPathHint
 		for (const [threadId, thread] of Object.entries(this.state.allThreads)) {
 			for (let idx = 0; idx < thread.messages.length; idx++) {
 				const msg = thread.messages[idx]
@@ -5582,10 +5599,6 @@ We only need to do it for files that were edited since `from`, ie files between 
 				}
 				if (msg.runId === runId && msg.patchId === patchId && msg.patchStatus === 'pending') {
 					this._editMessageInThread(threadId, idx, { ...msg, patchStatus: status })
-					const rel = msg.patchPath || patchPathHint
-					if (status === 'accepted' && folder && rel) {
-						this._addToolEditCheckpoint({ threadId, uri: URI.joinPath(folder.uri, rel) })
-					}
 				}
 			}
 		}
@@ -5758,6 +5771,23 @@ We only need to do it for files that were edited since `from`, ie files between 
 				reasoning: '',
 				anthropicReasoning: null,
 			})
+			if (result.runId) {
+				const detail = await this._openCursorPatchService.patch({
+					workspaceRoot: folder.uri.fsPath,
+					op: 'get',
+					runId: result.runId,
+				})
+				const snapshot = (detail.run as { snapshot?: Record<string, unknown> } | undefined)?.snapshot
+				if (snapshot && Object.keys(snapshot).length) {
+					this._addCheckpoint(threadId, {
+						role: 'checkpoint',
+						type: 'tool_edit',
+						openCursorRunId: result.runId,
+						voidFileSnapshotOfURI: {},
+						userModifications: { voidFileSnapshotOfURI: {} },
+					})
+				}
+			}
 			this._setStreamState(threadId, undefined)
 		} catch (e) {
 			this._setStreamState(threadId, { error: getErrorMessage(e) })

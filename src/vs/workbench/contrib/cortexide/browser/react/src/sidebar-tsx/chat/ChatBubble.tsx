@@ -49,6 +49,10 @@ const Checkpoint = ({ message, threadId, messageIdx, isCheckpointGhost, threadIs
                 `}
 			style={{ position: 'relative', display: 'inline-block' }} // allow absolute icon
 			onClick={() => {
+				if (message.openCursorRunId) {
+					void chatThreadService.toggleOpenCursorCheckpoint(message.openCursorRunId)
+					return
+				}
 				if (threadIsRunning) return
 				if (isDisabled) return
 				chatThreadService.jumpToCheckpointBeforeMessageIdx({
