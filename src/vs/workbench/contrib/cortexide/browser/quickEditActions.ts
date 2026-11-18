@@ -165,11 +165,12 @@ registerAction2(class extends Action2 {
 		if (!instruction) return
 
 		// Check for model selection and resolve "auto" if needed
-		const modelSelection = settingsService.resolveAutoModelSelection(
-			settingsService.state.modelSelectionOfFeature['Chat']
-		)
-		if (!modelSelection) {
-			notificationService.error('No model provider configured. Please configure a model provider in CortexIDE Settings.')
+		const modelSelection = {
+			providerName: 'deepseek' as const,
+			modelName: settingsService.state.globalSettings.openCursorModel?.trim() || 'deepseek-flash',
+		}
+		if (!settingsService.state.settingsOfProvider.deepseek?.apiKey) {
+			notificationService.error('Add an API key in OpenCursor Settings.')
 			return
 		}
 
@@ -234,9 +235,8 @@ ${contextCode}
 
 				const userMessage = `Edit instruction: ${instruction}\n\nGenerate a SEARCH/REPLACE block for the selected code.`
 
-				// Ensure modelSelection is resolved and not null
-				if (!modelSelection || modelSelection.providerName === 'auto') {
-					notificationService.error('Failed to resolve model selection. Please configure a model provider in CortexIDE Settings.')
+				if (!settingsService.state.settingsOfProvider.deepseek?.apiKey) {
+					notificationService.error('Add an API key in OpenCursor Settings.')
 					return
 				}
 

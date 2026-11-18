@@ -28,6 +28,58 @@ import { useImageAttachments } from '../util/useImageAttachments.js';
 import { usePDFAttachments } from '../util/usePDFAttachments.js';
 import { useTranslation } from '../util/useTranslation.js';
 
+type CanvasDoc = {
+	title: string
+	blocks: Array<Record<string, any>>
+	lastAction?: string
+}
+
+const OpenCursorCanvas = ({ refreshKey }: { refreshKey: string }) => {
+	const accessor = useAccessor()
+	const patches = accessor.get('IOpenCursorPatchService')
+	const workspace = accessor.get('IWorkspaceContextService')
+	const [doc, setDoc] = useState<CanvasDoc | null>(null)
+
+	useEffect(() => {
+		const folder = workspace.getWorkspace().folders[0]
+		if (!folder) return
+		let stop = false
+		patches.patch({ workspaceRoot: folder.uri.fsPath, op: 'canvas' }).then((res) => {
+			if (!stop) setDoc((res.canvas as CanvasDoc | undefined) ?? null)
+		}).catch(() => { })
+		return () => { stop = true }
+	}, [refreshKey, patches, workspace])
+
+	if (!doc) return null
+	return (
+		<div className="shrink-0 max-h-[32%] overflow-y-auto border-t border-void-border-3 px-3 py-2 text-xs">
+			<div className="font-semibold mb-1">{doc.title}</div>
+			{(doc.blocks || []).map((block, i) => {
+				if (block.type === 'button') {
+					return <button key={i} className="mr-2 underline" onClick={() => {
+						const folder = workspace.getWorkspace().folders[0]
+						if (!folder) return
+						void patches.patch({
+							workspaceRoot: folder.uri.fsPath,
+							op: 'canvas-action',
+							action: String(block.action || block.label || ''),
+						}).then((res) => setDoc((res.canvas as CanvasDoc | undefined) ?? doc))
+					}}>{String(block.label || block.action || 'Action')}</button>
+				}
+				if (block.type === 'table') {
+					return <div key={i}>{(block.rows || []).map((row: string[], r: number) => <div key={r}>{row.join(' · ')}</div>)}</div>
+				}
+				if (block.type === 'timeline' || block.type === 'todos') {
+					return <div key={i}>{(block.items || []).map((item: { time?: string; title?: string }, r: number) => <div key={r}>{[item.time, item.title].filter(Boolean).join(' ')}</div>)}</div>
+				}
+				const line = block.text || (block.label ? `${block.label} ${block.value || ''}` : '')
+				return line ? <div key={i}>{line}</div> : null
+			})}
+			{doc.lastAction ? <div>Noted: {doc.lastAction}</div> : null}
+		</div>
+	)
+}
+
 export const SidebarChat = () => {
 	const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
 	const textAreaFnsRef = useRef<TextAreaFns | null>(null)
@@ -340,6 +392,7 @@ export const SidebarChat = () => {
 			<div className="flex-1 min-h-0 overflow-hidden">
 				{isLandingPage ? landingPageContent : threadPageContent}
 			</div>
+			<OpenCursorCanvas refreshKey={`${previousMessages.length}:${isRunning || ''}`} />
 		</div>
 	)
 }

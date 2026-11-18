@@ -227,6 +227,7 @@ export const VoidChatArea: React.FC<CortexideChatAreaProps> = ({
 	featureName,
 	loadingIcon,
 }) => {
+	const settingsState = useSettingsState()
 	const [isDragOver, setIsDragOver] = React.useState(false);
 	const imageInputRef = React.useRef<HTMLInputElement>(null);
 	const pdfInputRef = React.useRef<HTMLInputElement>(null);
@@ -502,9 +503,7 @@ export const VoidChatArea: React.FC<CortexideChatAreaProps> = ({
 			<div className='cortex-composer-toolbar flex flex-row justify-between items-center gap-2'>
 				{showModelDropdown && (
 					<div className='flex items-center flex-wrap gap-x-2 gap-y-1 text-nowrap flex-1 min-w-0'>
-						{featureName === 'Chat' && <ChatModeDropdown className='cortex-composer-control' />}
-						<ModelDropdown featureName={featureName} className='cortex-composer-control' />
-						<ReasoningOptionSlider featureName={featureName} />
+						<span className='text-xs text-void-fg-3'>{settingsState.globalSettings.openCursorModel || 'deepseek-flash'}</span>
 					</div>
 				)}
 

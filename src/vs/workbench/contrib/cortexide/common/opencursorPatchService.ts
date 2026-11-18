@@ -6,11 +6,12 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OPENCURSOR_AGENT_CHANNEL } from './opencursorAgentTypes.js';
-import type { OpenCursorPatchRequest, OpenCursorPatchResult } from './opencursorAgentTypes.js';
+import type { OpenCursorCompleteRequest, OpenCursorCompleteResult, OpenCursorPatchRequest, OpenCursorPatchResult } from './opencursorAgentTypes.js';
 
 export interface IOpenCursorPatchService {
 	readonly _serviceBrand: undefined;
 	patch(req: OpenCursorPatchRequest): Promise<OpenCursorPatchResult>;
+	complete(req: OpenCursorCompleteRequest): Promise<OpenCursorCompleteResult>;
 }
 
 export const IOpenCursorPatchService = createDecorator<IOpenCursorPatchService>('OpenCursorPatchService');
@@ -25,6 +26,10 @@ class OpenCursorPatchService implements IOpenCursorPatchService {
 
 	patch(req: OpenCursorPatchRequest): Promise<OpenCursorPatchResult> {
 		return this._channel.call('patch', req);
+	}
+
+	complete(req: OpenCursorCompleteRequest): Promise<OpenCursorCompleteResult> {
+		return this._channel.call('complete', req);
 	}
 }
 

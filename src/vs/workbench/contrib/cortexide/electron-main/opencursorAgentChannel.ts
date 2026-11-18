@@ -14,11 +14,14 @@ import type {
 	OpenCursorAgentStep,
 	OpenCursorPatchRequest,
 	OpenCursorPatchResult,
+	OpenCursorCompleteRequest,
+	OpenCursorCompleteResult,
 } from '../common/opencursorAgentTypes.js';
 
 const MAX_TIMEOUT_MS = 600_000;
 const AGENT_REL = join('dist', 'opencursor-agent.cjs');
 const PATCHES_REL = join('dist', 'opencursor-patches.mjs');
+const COMPLETE_REL = join('dist', 'opencursor-complete.mjs');
 
 function resolveDistScript(workspaceRoot: string, rel: string, envOverride?: string): string | null {
 	if (envOverride && existsSync(envOverride)) {
@@ -50,10 +53,18 @@ function resolvePatchesCliPath(workspaceRoot: string): string | null {
 	return resolveDistScript(workspaceRoot, PATCHES_REL, process.env.OPENCURSOR_PATCHES_CLI);
 }
 
+function resolveCompleteCliPath(workspaceRoot: string): string | null {
+	return resolveDistScript(workspaceRoot, COMPLETE_REL, process.env.OPENCURSOR_COMPLETE_CLI);
+}
+
 export class OpenCursorAgentChannel implements IServerChannel {
 
 	private readonly _onStep = new Emitter<OpenCursorAgentProgressEvent>();
 	private _agentChild: ChildProcess | undefined;
+	private _completeChild: ChildProcess | undefined;
+	private _completeWorkspace = '';
+	private readonly _completeWaiters = new Map<string, (line: string) => void>();
+	private _completeSeq = 0;
 
 	listen(_: unknown, event: string): Event<any> {
 		if (event === 'onStep') {
@@ -69,6 +80,9 @@ export class OpenCursorAgentChannel implements IServerChannel {
 		if (command === 'patch') {
 			return this._patch(params as OpenCursorPatchRequest) as Promise<T>;
 		}
+		if (command === 'complete') {
+			return this._complete(params as OpenCursorCompleteRequest) as Promise<T>;
+		}
 		if (command === 'abort') {
 			this._abortAgentChild();
 			return { ok: true } as T;
@@ -83,6 +97,93 @@ export class OpenCursorAgentChannel implements IServerChannel {
 		try {
 			this._agentChild.kill('SIGKILL');
 		} catch { /* ignore */ }
+	}
+
+	private _stopCompleteChild(): void {
+		const child = this._completeChild;
+		this._completeChild = undefined;
+		this._completeWorkspace = '';
+		for (const waiter of this._completeWaiters.values()) {
+			waiter('');
+		}
+		this._completeWaiters.clear();
+		try {
+			child?.kill('SIGKILL');
+		} catch { /* ignore */ }
+	}
+
+	private _ensureCompleteChild(workspaceRoot: string): ChildProcess | null {
+		if (this._completeChild && this._completeWorkspace === workspaceRoot) {
+			return this._completeChild;
+		}
+		this._stopCompleteChild();
+		const cliPath = resolveCompleteCliPath(workspaceRoot);
+		if (!cliPath) {
+			return null;
+		}
+		const child = spawn(process.execPath, [cliPath, '--serve'], {
+			cwd: workspaceRoot,
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			shell: false,
+			windowsHide: true,
+		});
+		let buf = '';
+		child.stdout?.on('data', (d: Buffer) => {
+			buf += d.toString();
+			let nl = buf.indexOf('\n');
+			while (nl >= 0) {
+				const line = buf.slice(0, nl);
+				buf = buf.slice(nl + 1);
+				try {
+					const id = (JSON.parse(line) as { id?: string }).id;
+					if (id && this._completeWaiters.has(id)) {
+						this._completeWaiters.get(id)?.(line);
+						this._completeWaiters.delete(id);
+					}
+				} catch { /* ignore partial */ }
+				nl = buf.indexOf('\n');
+			}
+		});
+		child.on('exit', () => {
+			if (this._completeChild === child) {
+				this._completeChild = undefined;
+			}
+		});
+		this._completeChild = child;
+		this._completeWorkspace = workspaceRoot;
+		return child;
+	}
+
+	private _complete(req: OpenCursorCompleteRequest): Promise<OpenCursorCompleteResult> {
+		const workspaceRoot = req?.workspaceRoot?.trim();
+		if (!workspaceRoot) {
+			return Promise.resolve({ ok: false, error: 'workspaceRoot required' });
+		}
+		const child = this._ensureCompleteChild(workspaceRoot);
+		if (!child?.stdin) {
+			return Promise.resolve({ ok: false, error: 'completion CLI not found (npm run build:agent-cli)' });
+		}
+		const id = String(++this._completeSeq);
+		return new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				this._completeWaiters.delete(id);
+				resolve({ ok: false, error: 'completion timed out' });
+			}, 2500);
+			this._completeWaiters.set(id, (line) => {
+				clearTimeout(timer);
+				if (!line) {
+					resolve({ ok: false, error: 'completion process stopped' });
+					return;
+				}
+				try {
+					const parsed = JSON.parse(line) as { completion?: string; via?: string; error?: string };
+					resolve({ ok: !parsed.error, completion: parsed.completion || '', via: parsed.via, error: parsed.error });
+				} catch (error) {
+					resolve({ ok: false, error: String(error) });
+				}
+			});
+			child.stdin!.write(JSON.stringify({ id, workspace: workspaceRoot, text: req.text, cursor: req.cursor }) + '\n');
+		});
 	}
 
 	private _spawnJsonScript(cliPath: string, workspaceRoot: string, payload: object): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
@@ -127,6 +228,7 @@ export class OpenCursorAgentChannel implements IServerChannel {
 			op: req.op,
 			runId: req.runId,
 			patchId: req.patchId,
+			action: req.action,
 		});
 		if (!spawned.ok) {
 			return { ok: false, error: spawned.error };
@@ -138,8 +240,10 @@ export class OpenCursorAgentChannel implements IServerChannel {
 			restored?: number;
 			paths?: string[];
 			at?: 'before' | 'after';
+			canvas?: unknown;
+			text?: string;
 		};
-		return { ok: true, runs: data.runs, patch: data.patch, run: data.run, restored: data.restored, paths: data.paths, at: data.at };
+		return { ok: true, runs: data.runs, patch: data.patch, run: data.run, restored: data.restored, paths: data.paths, at: data.at, canvas: data.canvas, text: data.text };
 	}
 
 	private _emitProgressLines(buffer: string): string {
@@ -200,6 +304,7 @@ export class OpenCursorAgentChannel implements IServerChannel {
 				useMcp: req.useMcp,
 				deepseekApiKey: req.deepseekApiKey,
 				deepseekEndpoint: req.deepseekEndpoint,
+				deepseekModel: req.deepseekModel,
 			});
 
 			const timeoutMs = Math.min(Math.max(req.timeoutMs ?? 300_000, 5_000), MAX_TIMEOUT_MS);

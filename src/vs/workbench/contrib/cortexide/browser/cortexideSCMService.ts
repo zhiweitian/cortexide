@@ -15,8 +15,7 @@ import { ICortexideSettingsService } from '../common/cortexideSettingsService.js
 import { IConvertToLLMMessageService } from './convertToLLMMessageService.js'
 import { ILLMMessageService } from '../common/sendLLMMessageService.js'
 import { ModelSelection, OverridesOfModel, ModelSelectionOptions } from '../common/cortexideSettingsTypes.js'
-import { gitCommitMessage_systemMessage, gitCommitMessage_systemMessage_local, gitCommitMessage_userMessage } from '../common/prompt/prompts.js'
-import { isLocalProvider } from './convertToLLMMessageService.js'
+import { gitCommitMessage_systemMessage, gitCommitMessage_userMessage } from '../common/prompt/prompts.js'
 import { LLMChatMessage } from '../common/sendLLMMessageTypes.js'
 import { generateUuid } from '../../../../base/common/uuid.js'
 import { ThrottledDelayer } from '../../../../base/common/async.js'
@@ -87,20 +86,18 @@ class GenerateCommitMessageService extends Disposable implements IGenerateCommit
 
 				if (!this.isCurrentRequest(requestId)) { throw new CancellationError() }
 
-				const modelSelection = this.cortexideSettingsService.state.modelSelectionOfFeature['SCM'] ?? null
-				// Skip "auto" - it's not a real provider
-				const modelSelectionOptions = modelSelection && !(modelSelection.providerName === 'auto' && modelSelection.modelName === 'auto')
-					? this.cortexideSettingsService.state.optionsOfModelSelection['SCM'][modelSelection.providerName]?.[modelSelection.modelName]
-					: undefined
+				const modelSelection = {
+					providerName: 'deepseek' as const,
+					modelName: this.cortexideSettingsService.state.globalSettings.openCursorModel?.trim() || 'deepseek-flash',
+				}
+				const modelSelectionOptions = undefined
 				const overridesOfModel = this.cortexideSettingsService.state.overridesOfModel
 
 				const modelOptions: ModelOptions = { modelSelection, modelSelectionOptions, overridesOfModel }
 
 				const prompt = gitCommitMessage_userMessage(stat, sampledDiffs, branch, log)
 
-				// Use local variant for local models to reduce token usage
-				const isLocal = modelSelection && modelSelection.providerName !== 'auto' && isLocalProvider(modelSelection.providerName, this.cortexideSettingsService.state.settingsOfProvider)
-				const systemMessage = isLocal ? gitCommitMessage_systemMessage_local : gitCommitMessage_systemMessage
+				const systemMessage = gitCommitMessage_systemMessage
 
 				const simpleMessages = [{ role: 'user', content: prompt } as const]
 				const { messages, separateSystemMessage } = this.convertToLLMMessageService.prepareLLMSimpleMessages({

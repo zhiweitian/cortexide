@@ -31,13 +31,6 @@ class OpenCursorStatusBarContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async refresh(): Promise<void> {
-		const enabled = !!this.settingsService.state.globalSettings.useOpenCursorAgentCore;
-		if (!enabled) {
-			this.entry?.dispose();
-			this.entry = undefined;
-			return;
-		}
-
 		const props = await this.buildEntry();
 		if (!this.entry) {
 			this.entry = this.statusbarService.addEntry(

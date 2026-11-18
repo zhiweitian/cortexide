@@ -30,6 +30,7 @@ import { ProjectRule } from '../../../../common/cortexideRulesService.js'
 import { VSBuffer } from '../../../../../../../base/common/buffer.js'
 
 type Tab =
+	| 'api'
 	| 'models'
 	| 'localProviders'
 	| 'providers'
@@ -1194,17 +1195,6 @@ export const OllamaSetupInstructions = ({ sayWeAutoDetect }: { sayWeAutoDetect?:
             <div className='flex items-center gap-2 ml-4'>
                 <VoidSwitch
                     size='xxs'
-                    value={!!cortexideSettingsService.state.globalSettings.useOpenCursorAgentCore}
-                    onChange={(v) => cortexideSettingsService.setGlobalSetting('useOpenCursorAgentCore', !!v)}
-                />
-                <span className='text-void-fg-3 text-xs'>OpenCursor agent-core (Chat)</span>
-                <span className='text-void-fg-4 text-xs' title='Use monorepo agent-core for Chat. Requires: npm run build:agent-cli (dist/opencursor-agent.cjs under workspace or parent), data/config.json or DeepSeek key in Settings. Status bar shows readiness. Patches: chat bubbles or command palette.'>
-                    (i)
-                </span>
-            </div>
-            <div className='flex items-center gap-2 ml-4'>
-                <VoidSwitch
-                    size='xxs'
                     value={cortexideSettingsService.state.globalSettings.openCursorUseMcp !== false}
                     onChange={(v) => cortexideSettingsService.setGlobalSetting('openCursorUseMcp', !!v)}
                 />
@@ -1673,21 +1663,55 @@ const MCPServersList = () => {
 	return <div className="my-2">{content}</div>
 };
 
+const ApiSettings = () => {
+	const accessor = useAccessor()
+	const settingsService = accessor.get('ICortexideSettingsService')
+	const state = useSettingsState()
+	const saved = state.settingsOfProvider.deepseek
+	const [baseUrl, setBaseUrl] = useState(saved?.endpoint || 'https://api.deepseek.com')
+	const [apiKey, setApiKey] = useState(saved?.apiKey || '')
+	const [model, setModel] = useState(state.globalSettings.openCursorModel || 'deepseek-flash')
+	const [note, setNote] = useState('')
+	const save = async () => {
+		const url = baseUrl.trim().replace(/\/$/, '')
+		const key = apiKey.trim()
+		const modelName = model.trim()
+		if (!url || !key || !modelName) {
+			setNote('Fill in the API URL, key, and model.')
+			return
+		}
+		await settingsService.setSettingOfProvider('deepseek', 'endpoint', url)
+		await settingsService.setSettingOfProvider('deepseek', 'apiKey', key)
+		settingsService.addModel('deepseek', modelName)
+		settingsService.setGlobalSetting('openCursorModel', modelName)
+		setNote('Saved.')
+	}
+	return <div>
+		<h2 className='text-3xl mb-2'>API</h2>
+		<p className='text-sm text-void-fg-3 mb-3'>One API URL, key, and model. Chat uses this.</p>
+		<label className='block text-xs text-void-fg-3 mt-3'>API URL</label>
+		<input className='mt-1 w-full max-w-lg rounded border border-void-border-3 bg-void-bg-1 px-3 py-2 text-sm' value={baseUrl} onChange={e => setBaseUrl(e.target.value)} />
+		<label className='block text-xs text-void-fg-3 mt-3'>API key</label>
+		<input className='mt-1 w-full max-w-lg rounded border border-void-border-3 bg-void-bg-1 px-3 py-2 text-sm' type='password' value={apiKey} onChange={e => setApiKey(e.target.value)} />
+		<label className='block text-xs text-void-fg-3 mt-3'>Model</label>
+		<input className='mt-1 w-full max-w-lg rounded border border-void-border-3 bg-void-bg-1 px-3 py-2 text-sm' value={model} onChange={e => setModel(e.target.value)} />
+		<div className='mt-4 flex items-center gap-3'>
+			<button type='button' className='btn btn-primary btn-sm' onClick={() => { void save() }}>Save</button>
+			{note ? <span className='text-xs text-void-fg-3'>{note}</span> : null}
+		</div>
+	</div>
+}
+
 export const Settings = () => {
 	const isDark = useIsDark()
 	const { t } = useTranslation()
 	// --- sidebar nav ---
 	const [selectedSection, setSelectedSection] =
-		useState<Tab>('models');
+		useState<Tab>('api');
 
 	const navItems: { tab: Tab; label: string }[] = [
-		{ tab: 'models', label: t('settings.models') },
-		{ tab: 'localProviders', label: t('settings.localProviders') },
-		{ tab: 'providers', label: t('settings.mainProviders') },
-		{ tab: 'featureOptions', label: t('settings.featureOptions') },
-		{ tab: 'general', label: t('settings.general') },
+		{ tab: 'api', label: 'API' },
 		{ tab: 'mcp', label: t('settings.mcpShort') },
-		{ tab: 'all', label: t('settings.allSettings') },
 	];
 	const shouldShowTab = (tab: Tab) => selectedSection === 'all' || selectedSection === tab;
 	const accessor = useAccessor()
@@ -1825,6 +1849,9 @@ export const Settings = () => {
 
 						{/* All sections in flex container with gap-12 */}
 						<div className='flex flex-col gap-12'>
+							<div className={shouldShowTab('api') ? `` : 'hidden'}>
+								<ApiSettings />
+							</div>
 							{/* Models section (formerly FeaturesTab) */}
 							<div className={shouldShowTab('models') ? `` : 'hidden'}>
 								<ErrorBoundary>

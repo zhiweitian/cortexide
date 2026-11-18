@@ -63,7 +63,7 @@ import { RawMCPToolCall } from '../common/mcpServiceTypes.js';
 import { preprocessImagesForQA } from './imageQAIntegration.js';
 import { ITaskAwareModelRouter, TaskContext, TaskType, RoutingDecision } from '../common/modelRouter.js';
 import { looksLikeCodebaseQuestion } from '../common/routing/codebaseQuestionDetector.js';
-import { isTriviaQuestion, looksLikeSimpleQuestion } from '../common/routing/simpleQuestionGate.js';
+import { isTriviaQuestion } from '../common/routing/simpleQuestionGate.js';
 import { canonicalizeToolName, canonicalizeToolParams } from '../common/parseJsonToolCall.js';
 import { recognizeTextToolCall } from '../common/toolCallRecognition.js';
 import { decideToolSynthesis, decideHowManySearch } from '../common/toolSynthesisDecision.js';
@@ -716,198 +716,6 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 	}
 
 	/**
-	 * Auto-select model based on task context
-	 * Falls back to user's manual selection if they've set one
-	 */
-	private async _autoSelectModel(
-		userMessage: string,
-		images?: ChatImageAttachment[],
-		pdfs?: ChatPDFAttachment[]
-	): Promise<ModelSelection | null> {
-		const featureName: FeatureName = 'Chat'
-		const userManualSelection = this._settingsService.state.modelSelectionOfFeature[featureName]
-
-		// If user has a specific model selected (not "Auto"), respect it
-		if (userManualSelection && !(userManualSelection.providerName === 'auto' && userManualSelection.modelName === 'auto')) {
-			return userManualSelection
-		}
-
-		// Detect task type from message and attachments
-		const taskType = this._detectTaskType(userMessage, images, pdfs)
-		const hasImages = images && images.length > 0
-		const hasPDFs = pdfs && pdfs.length > 0
-		const hasCode = this._detectCodeInMessage(userMessage)
-
-		// Detect complexity indicators
-		const lowerMessage = userMessage.toLowerCase().trim()
-		const reasoningKeywords = ['explain why', 'analyze', 'compare and contrast', 'evaluate', 'critique', 'reasoning', 'logical', 'deduce', 'infer', 'conclusion', 'argument', 'thesis', 'hypothesis', 'theoretical', 'conceptual']
-		const complexAnalysisKeywords = ['complex', 'sophisticated', 'nuanced', 'detailed analysis', 'deep understanding', 'comprehensive', 'thorough']
-
-		// Codebase questions require complex reasoning (understanding structure, relationships, etc.).
-		// Shared, word-boundary-aware detector (see codebaseQuestionDetector.ts) so a word like
-		// "capital" (contains "api") or "report" (prefix "repo") is no longer mis-detected.
-		const isCodebaseQuestion = looksLikeCodebaseQuestion(userMessage)
-
-		const requiresComplexReasoning = isCodebaseQuestion || // Codebase questions need reasoning
-			reasoningKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			complexAnalysisKeywords.some(keyword => lowerMessage.includes(keyword))
-		const isLongMessage = userMessage.length > 500
-
-		// Privacy/offline mode: removed restriction for images/PDFs
-		// Images/PDFs now always use auto selection (remote models allowed)
-		const globalSettings = this._settingsService.state.globalSettings
-		const requiresPrivacy = false
-
-		// Estimate context size needed for codebase questions
-		// Codebase questions often need to process many files, so estimate higher context needs
-		let estimatedContextSize: number | undefined = undefined
-		if (isCodebaseQuestion) {
-			// Codebase questions typically need:
-			// - Base message: ~500 tokens
-			// - System message + repo context: ~2000 tokens (from repo indexer)
-			// - Multiple file contexts: ~5000-15000 tokens (depending on codebase size)
-			// - Response space: ~4000 tokens
-			// Total: ~12k-22k tokens minimum, but prefer models with 128k+ for better understanding
-			estimatedContextSize = 20000 // Conservative estimate - prefer models with large context
-		} else if (requiresComplexReasoning || isLongMessage) {
-			// Complex reasoning tasks may need more context
-			estimatedContextSize = Math.max(8000, Math.ceil(userMessage.length / 2)) // Rough estimate
-		}
-
-		// Detect additional task-specific flags
-		const isDebuggingTask = this._detectDebuggingTask(lowerMessage, hasCode)
-		const isCodeReviewTask = this._detectCodeReviewTask(lowerMessage)
-		const isTestingTask = this._detectTestingTask(lowerMessage)
-		const isDocumentationTask = this._detectDocumentationTask(lowerMessage)
-		const isPerformanceTask = this._detectPerformanceTask(lowerMessage)
-		const isSecurityTask = this._detectSecurityTask(lowerMessage)
-		const isSimpleQuestion = this._detectSimpleQuestion(userMessage)
-		const isMathTask = this._detectMathTask(lowerMessage)
-		const isMultiLanguageTask = this._detectMultiLanguageTask(lowerMessage)
-		const isMultiStepTask = this._detectMultiStepTask(lowerMessage)
-
-		// Build task context
-		// Enable low-latency preference for simple questions to improve TTFS
-		// More aggressive: enable for simple questions OR when task doesn't require complex reasoning
-		const preferLowLatency = (isSimpleQuestion ||
-			(!requiresComplexReasoning &&
-				!hasImages &&
-				!hasPDFs &&
-				!isLongMessage &&
-				!isMultiStepTask &&
-				!isCodebaseQuestion &&
-				taskType === 'chat')) // Only for general chat, not code/vision tasks
-
-		const context: TaskContext = {
-			taskType,
-			hasImages,
-			hasPDFs,
-			hasCode,
-			contextSize: estimatedContextSize,
-			requiresPrivacy,
-			preferLowLatency, // Auto-enable for simple queries to improve TTFS
-			preferLowCost: false, // Could be a setting
-			userOverride: null, // No override when in auto mode
-			requiresComplexReasoning,
-			isLongMessage,
-			isDebuggingTask,
-			isCodeReviewTask,
-			isTestingTask,
-			isDocumentationTask,
-			isPerformanceTask,
-			isSecurityTask,
-			isSimpleQuestion,
-			isMathTask,
-			isMultiLanguageTask,
-			isMultiStepTask,
-		}
-
-		try {
-			const routingDecision = await this._modelRouter.route(context)
-
-			// Handle abstain/clarify
-			if (routingDecision.shouldAbstain && routingDecision.abstainReason) {
-				this._notificationService.info(routingDecision.abstainReason)
-				// Return null to indicate we should not proceed
-				return null
-			}
-
-			// Log routing decision in dev mode (or always for codebase questions to help debug)
-			if (globalSettings.imageQADevMode || isCodebaseQuestion) {
-				const logData = {
-					selected: `${routingDecision.modelSelection.providerName}/${routingDecision.modelSelection.modelName}`,
-					confidence: routingDecision.confidence,
-					reasoning: routingDecision.reasoning,
-					qualityTier: routingDecision.qualityTier,
-					timeoutMs: routingDecision.timeoutMs,
-					userOverride: userManualSelection ? 'yes' : 'no',
-					isCodebaseQuestion,
-					contextSize: estimatedContextSize,
-					taskType,
-					requiresComplexReasoning,
-					hasCode,
-				};
-				console.log('[Auto Model Select]', JSON.stringify(logData, null, 2));
-
-				// Warn if local model selected for codebase question
-				if (isCodebaseQuestion && routingDecision.modelSelection.providerName === 'ollama') {
-					console.warn('[Auto Model Select] WARNING: Local model selected for codebase question!', logData);
-				}
-			}
-
-			// Store routing decision for later outcome tracking
-			// We'll track the outcome when the message is actually sent
-			return routingDecision.modelSelection
-		} catch (error) {
-			console.error('[Auto Model Select] Error:', error)
-			// Fall back to user's manual selection or null
-			return userManualSelection
-		}
-	}
-
-	/**
-	 * Get a fallback model when auto selection fails
-	 * Returns the first available configured model, or null if none are available
-	 */
-	// Note: _getFallbackModel removed - use _settingsService.resolveAutoModelSelection() instead
-
-	/**
-	 * Check if a model supports vision/image inputs
-	 * Uses the same logic as modelRouter
-	 */
-	private _isModelVisionCapable(modelSelection: ModelSelection, capabilities: any): boolean {
-		const name = modelSelection.modelName.toLowerCase();
-		const provider = modelSelection.providerName.toLowerCase();
-
-		// Known vision-capable models
-		if (provider === 'gemini') return true; // all Gemini models support vision
-		if (provider === 'anthropic') {
-			return name.includes('3.5') || name.includes('3.7') || name.includes('4') || name.includes('opus') || name.includes('sonnet');
-		}
-		if (provider === 'openai') {
-			// GPT-5 series (all variants support vision)
-			if (name.includes('gpt-5') || name.includes('gpt-5.1')) return true;
-			// GPT-4.1 series
-			if (name.includes('4.1')) return true;
-			// GPT-4o series
-			if (name.includes('4o')) return true;
-			// o-series reasoning models (o1, o3, o4-mini support vision)
-			if (name.startsWith('o1') || name.startsWith('o3') || name.startsWith('o4')) return true;
-			// Legacy GPT-4 models
-			if (name.includes('gpt-4')) return true;
-		}
-		if (provider === 'mistral') {
-			// Pixtral models support vision
-			if (name.includes('pixtral')) return true;
-		}
-		if (provider === 'ollama' || provider === 'vllm') {
-			return name.includes('llava') || name.includes('bakllava') || name.includes('vision');
-		}
-
-		return false;
-	}
-
-	/**
 	 * Detect task type from message content and attachments
 	 * More conservative detection - only mark as specific task type if very clear
 	 */
@@ -996,193 +804,6 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		]
 
 		return codePatterns.some(pattern => pattern.test(message))
-	}
-
-	/**
-	 * Detect debugging/error fixing tasks
-	 */
-	private _detectDebuggingTask(lowerMessage: string, hasCode: boolean): boolean {
-		const debuggingKeywords = [
-			'fix error', 'debug', 'why is this failing', 'error message', 'exception', 'stack trace',
-			'why doesn\'t this work', 'not working', 'broken', 'crash', 'bug', 'fix bug',
-			'troubleshoot', 'issue', 'problem', 'failing', 'failed', 'error', 'errors'
-		]
-		const errorPatterns = [
-			/error\s+(message|occurred|happened|in|at)/i,
-			/exception\s+(thrown|occurred|in|at)/i,
-			/stack\s+trace/i,
-			/why\s+(is|does|isn\'t|doesn\'t).*work/i,
-			/why\s+(is|does).*fail/i,
-		]
-
-		return debuggingKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			errorPatterns.some(pattern => pattern.test(lowerMessage)) ||
-			(hasCode && (lowerMessage.includes('error') || lowerMessage.includes('exception')))
-	}
-
-	/**
-	 * Detect code review/refactoring tasks
-	 */
-	private _detectCodeReviewTask(lowerMessage: string): boolean {
-		const reviewKeywords = [
-			'review', 'refactor', 'improve code', 'code quality', 'best practices', 'clean up',
-			'is this good code', 'how can i improve', 'refactor this', 'code review',
-			'optimize', 'make it better', 'improve this', 'suggest improvements'
-		]
-		const reviewPatterns = [
-			/review\s+(this|my|the)\s+(code|function|class|method)/i,
-			/refactor\s+(this|my|the)/i,
-			/how\s+(can|to)\s+(improve|refactor|optimize)/i,
-			/is\s+(this|my|the)\s+(code|implementation)\s+(good|correct|proper)/i,
-		]
-
-		return reviewKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			reviewPatterns.some(pattern => pattern.test(lowerMessage))
-	}
-
-	/**
-	 * Detect testing tasks
-	 */
-	private _detectTestingTask(lowerMessage: string): boolean {
-		const testingKeywords = [
-			'write test', 'add test', 'test coverage', 'unit test', 'integration test',
-			'test for', 'how to test', 'create test', 'testing', 'test case', 'test suite',
-			'write tests', 'add tests', 'test this', 'test the'
-		]
-		const testingPatterns = [
-			/write\s+(a|an|the|unit|integration)\s+test/i,
-			/add\s+(a|an|unit|integration)\s+test/i,
-			/create\s+(a|an|unit|integration)\s+test/i,
-			/test\s+(for|this|the|coverage)/i,
-		]
-
-		return testingKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			testingPatterns.some(pattern => pattern.test(lowerMessage))
-	}
-
-	/**
-	 * Detect documentation tasks
-	 */
-	private _detectDocumentationTask(lowerMessage: string): boolean {
-		const docKeywords = [
-			'write doc', 'documentation', 'comment', 'explain code', 'readme', 'api doc',
-			'document this', 'add comments', 'write readme', 'document', 'docs',
-			'comment', 'comments', 'javadoc', 'jsdoc', 'docstring'
-		]
-		const docPatterns = [
-			/write\s+(documentation|doc|readme|comments)/i,
-			/add\s+(documentation|doc|comments|comment)/i,
-			/document\s+(this|my|the)/i,
-			/explain\s+(this|my|the)\s+(code|function|class)/i,
-		]
-
-		return docKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			docPatterns.some(pattern => pattern.test(lowerMessage))
-	}
-
-	/**
-	 * Detect performance optimization tasks
-	 */
-	private _detectPerformanceTask(lowerMessage: string): boolean {
-		const perfKeywords = [
-			'optimize', 'performance', 'speed up', 'make faster', 'bottleneck', 'profiling',
-			'how to optimize', 'performance issue', 'slow', 'faster', 'speed', 'efficiency',
-			'optimization', 'improve performance', 'performance problem'
-		]
-		const perfPatterns = [
-			/optimize\s+(this|my|the|for)/i,
-			/performance\s+(issue|problem|optimization|improvement)/i,
-			/how\s+to\s+(optimize|improve\s+performance|speed\s+up)/i,
-			/make\s+(this|it|the)\s+faster/i,
-		]
-
-		return perfKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			perfPatterns.some(pattern => pattern.test(lowerMessage))
-	}
-
-	/**
-	 * Detect security-related tasks
-	 */
-	private _detectSecurityTask(lowerMessage: string): boolean {
-		const securityKeywords = [
-			'security', 'vulnerability', 'secure', 'authentication', 'authorization', 'encryption',
-			'is this secure', 'security issue', 'vulnerable', 'vulnerabilities', 'secure this',
-			'security best practices', 'security review', 'security audit', 'xss', 'csrf', 'sql injection'
-		]
-		const securityPatterns = [
-			/security\s+(issue|problem|vulnerability|review|audit)/i,
-			/is\s+(this|my|the)\s+secure/i,
-			/how\s+to\s+secure/i,
-			/make\s+(this|it|the)\s+secure/i,
-		]
-
-		return securityKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			securityPatterns.some(pattern => pattern.test(lowerMessage))
-	}
-
-	/**
-	 * Detect simple/quick questions
-	 * More aggressive detection to enable low-latency routing for better UX
-	 */
-	private _detectSimpleQuestion(message: string): boolean {
-		// Canonical implementation lives in common/routing/simpleQuestionGate.ts (pure + unit-tested).
-		return looksLikeSimpleQuestion(message)
-	}
-
-	/**
-	 * Detect mathematical/computational tasks
-	 */
-	private _detectMathTask(lowerMessage: string): boolean {
-		const mathKeywords = [
-			'calculate', 'math', 'algorithm', 'formula', 'compute', 'statistics',
-			'calculation', 'mathematical', 'equation', 'solve', 'numerical', 'arithmetic'
-		]
-		const mathPatterns = [
-			/calculate\s+(this|the|a|an)/i,
-			/solve\s+(this|the|a|an|for)/i,
-			/math\s+(problem|question|calculation)/i,
-			/formula\s+(for|to|of)/i,
-		]
-
-		return mathKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			mathPatterns.some(pattern => pattern.test(lowerMessage))
-	}
-
-	/**
-	 * Detect multi-language codebase tasks
-	 */
-	private _detectMultiLanguageTask(lowerMessage: string): boolean {
-		const multiLangKeywords = [
-			'translate code', 'convert to', 'port to', 'rewrite in', 'convert from',
-			'multiple languages', 'different language', 'language conversion'
-		]
-		const multiLangPatterns = [
-			/translate\s+(code|this|from|to)/i,
-			/convert\s+(code|this|from|to)/i,
-			/port\s+(to|from)/i,
-			/rewrite\s+in/i,
-		]
-
-		return multiLangKeywords.some(keyword => lowerMessage.includes(keyword)) ||
-			multiLangPatterns.some(pattern => pattern.test(lowerMessage))
-	}
-
-	/**
-	 * Detect complex multi-step tasks
-	 */
-	private _detectMultiStepTask(lowerMessage: string): boolean {
-		// Multiple action verbs or "and" in requests indicate multi-step tasks
-		const actionVerbs = ['implement', 'create', 'add', 'build', 'make', 'set up', 'configure', 'write', 'generate', 'develop', 'fix', 'update', 'modify']
-		const verbCount = actionVerbs.filter(verb => lowerMessage.includes(verb)).length
-
-		// Multiple "and" conjunctions suggest multiple steps
-		const andCount = (lowerMessage.match(/\sand\s/g) || []).length
-
-		// Multi-step indicators
-		const multiStepKeywords = ['then', 'after that', 'next', 'also', 'additionally', 'furthermore', 'step', 'steps']
-		const hasMultiStepKeywords = multiStepKeywords.some(keyword => lowerMessage.includes(keyword))
-
-		return verbCount >= 2 || andCount >= 2 || hasMultiStepKeywords
 	}
 
 
@@ -3176,12 +2797,9 @@ Output ONLY the JSON, no other text. Start with { and end with }.`
 		let resolvedModelSelectionOptions = modelSelectionOptions
 
 		// Resolve "auto" model selection using shared utility
-		const resolved = this._settingsService.resolveAutoModelSelection(resolvedModelSelection)
-		if (!resolved) {
-			// No models available
-			this._notificationService.error('No models available. Please configure at least one model provider in settings.')
-			this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' })
-			return
+		const resolved = {
+			providerName: 'deepseek' as const,
+			modelName: this._settingsService.state.globalSettings.openCursorModel?.trim() || 'deepseek-flash',
 		}
 		resolvedModelSelection = resolved
 
@@ -5735,6 +5353,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 				useMcp: gs.openCursorUseMcp !== false,
 				deepseekApiKey: deepseek?.apiKey,
 				deepseekEndpoint: deepseek?.endpoint,
+				deepseekModel: gs.openCursorModel,
 			})
 			if (!result.ok) {
 				if (userAborted || result.error === 'aborted') {
@@ -5872,8 +5491,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 		this._setThreadState(threadId, { currCheckpointIdx: null }) // no longer at a checkpoint because started streaming
 
 		// Set early preparing state to give immediate feedback
-		let preparationCancelled = false
-		const preparationInterruptor = Promise.resolve(() => { preparationCancelled = true })
+		const preparationInterruptor = Promise.resolve(() => { })
 		this._setStreamState(threadId, {
 			isRunning: 'preparing',
 			llmInfo: {
@@ -5884,143 +5502,10 @@ We only need to do it for files that were edited since `from`, ie files between 
 			interrupt: preparationInterruptor
 		})
 
-		if (this._settingsService.state.globalSettings.useOpenCursorAgentCore) {
-			if ((images?.length ?? 0) > 0 || (pdfs?.length ?? 0) > 0) {
-				this._notificationService.warn('OpenCursor agent-core engine: image/PDF attachments not supported yet; using native agent.');
-			} else {
-				await this._runOpenCursorAgentCoreBridge({ threadId, message: userMessageContent })
-				return
-			}
+		if ((images?.length ?? 0) > 0) {
+			this._notificationService.warn('OpenCursor Chat does not send images yet. The text of this message is sent.')
 		}
-
-		// Check if user selected "Auto" mode
-		const userModelSelection = this._currentModelSelectionProps().modelSelection
-		const isAutoMode = isAutoModelSelection(userModelSelection)
-
-		// Auto-select model based on task context if in auto mode, otherwise use user's selection
-		// Generate requestId early for router tracking in auto mode, then reuse it in _runChatAgent
-		const earlyRequestId = isAutoMode ? generateUuid() : undefined
-		let modelSelection: ModelSelection | null
-
-		// PERFORMANCE: Start prompt prep in parallel with router decision for auto mode
-		// This can save 50-200ms by doing work that doesn't need model selection
-		let repoIndexerPromise: Promise<{ results: string[], metrics: any } | null> | undefined
-		if (isAutoMode && earlyRequestId) {
-			// Update status to show model selection in progress
-			if (!preparationCancelled) {
-				this._setStreamState(threadId, {
-					isRunning: 'preparing',
-					llmInfo: {
-						displayContentSoFar: 'Selecting best model for this task...',
-						reasoningSoFar: '',
-						toolCallSoFar: null
-					},
-					interrupt: preparationInterruptor
-				})
-			}
-
-			// Track router timing for auto mode
-			chatLatencyAudit.startRequest(earlyRequestId, 'auto', 'auto')
-			chatLatencyAudit.markRouterStart(earlyRequestId)
-
-			// Start router decision and repo indexer query in parallel
-			// PERFORMANCE: Repo indexer query doesn't need model selection - start it early
-			const routerPromise = this._autoSelectModel(instructions, images, pdfs)
-			const thread = this.state.allThreads[threadId]
-			const chatMessages = thread?.messages ?? []
-			const { chatMode } = this._settingsService.state.globalSettings
-
-			// Start repo indexer query in parallel (saves 50-200ms)
-			repoIndexerPromise = this._convertToLLMMessagesService.startRepoIndexerQuery(chatMessages, chatMode)
-
-			// Wait for router decision
-			const autoSelectedModel = await routerPromise
-			chatLatencyAudit.markRouterEnd(earlyRequestId)
-			modelSelection = autoSelectedModel
-
-			// CRITICAL: If auto selection failed, we need a fallback to prevent null modelSelection
-			// This ensures we never send empty messages to the API (which causes "invalid message format" error)
-			if (!modelSelection) {
-				// Try to get any available model as fallback using shared utility
-				const fallbackModel = this._settingsService.resolveAutoModelSelection(null)
-				if (fallbackModel) {
-					modelSelection = fallbackModel
-					this._notificationService.warn('Auto model selection failed. Using fallback model. Please configure your model providers.')
-				} else {
-					// Last resort: show error and don't proceed
-					this._notificationService.error('No models available. Please configure at least one model provider in settings.')
-					this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' })
-					return
-				}
-			}
-		} else {
-			modelSelection = userModelSelection
-		}
-
-		// Final validation: ensure modelSelection is not null before proceeding
-		if (!modelSelection) {
-			this._notificationService.error('No model selected. Please select a model in settings.')
-			this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' })
-			return
-		}
-
-		// Validate model capabilities if attachments are present
-		// This applies to both auto and manual mode to ensure images are handled correctly
-		if ((images && images.length > 0 || pdfs && pdfs.length > 0) && modelSelection && !(modelSelection.providerName === 'auto' && modelSelection.modelName === 'auto')) {
-			const { getModelCapabilities } = await import('../common/modelCapabilities.js');
-			const capabilities = getModelCapabilities(modelSelection.providerName, modelSelection.modelName, this._settingsService.state.overridesOfModel);
-
-			// Check if model is vision-capable using the same logic as modelRouter
-			const isVisionCapable = this._isModelVisionCapable(modelSelection, capabilities);
-
-			if (!isVisionCapable) {
-				// For PDFs, we can still send them as text (extractedText), so no warning needed
-				// For images, we should prevent sending or convert to text description
-				if (images && images.length > 0) {
-					// In auto mode, this shouldn't happen (router should select vision-capable model)
-					// But if it does (e.g., no vision models available), remove images and warn
-					if (isAutoMode) {
-						this._notificationService.warn(`Auto-selected model (${modelSelection.providerName}/${modelSelection.modelName}) does not support images. Images will not be sent. Please configure a vision-capable model.`);
-					} else {
-						this._notificationService.warn(`The selected model (${modelSelection.providerName}/${modelSelection.modelName}) does not support images. Images will not be sent to the model.`);
-					}
-					// Remove images from the message since model can't process them
-					images = [];
-				}
-				// PDFs are sent as extracted text, so they work fine with non-vision models
-				// No notification needed - PDFs will be processed correctly via text extraction
-			}
-		}
-
-		// Check if preparation was cancelled
-		if (preparationCancelled) {
-			this._setStreamState(threadId, undefined)
-			return
-		}
-
-		// Update status to show request preparation
-		this._setStreamState(threadId, {
-			isRunning: 'preparing',
-			llmInfo: {
-				displayContentSoFar: 'Preparing request...',
-				reasoningSoFar: '',
-				toolCallSoFar: null
-			},
-			interrupt: preparationInterruptor
-		})
-
-		// Get model options (skip for "auto" since it's not a real model)
-		const modelSelectionOptions = modelSelection && !(modelSelection.providerName === 'auto' && modelSelection.modelName === 'auto')
-			? this._settingsService.state.optionsOfModelSelection['Chat'][modelSelection.providerName]?.[modelSelection.modelName]
-			: undefined
-
-		// repoIndexerPromise is already set above if in auto mode
-
-		// Pass earlyRequestId, isAutoMode, and repoIndexerPromise to _runChatAgent for latency tracking
-		this._wrapRunAgentToNotify(
-			this._runChatAgent({ threadId, modelSelection, modelSelectionOptions, earlyRequestId, isAutoMode, repoIndexerPromise }),
-			threadId,
-		)
+		await this._runOpenCursorAgentCoreBridge({ threadId, message: userMessageContent })
 
 		// scroll to bottom
 		this.state.allThreads[threadId]?.state.mountedInfo?.whenMounted.then(m => {

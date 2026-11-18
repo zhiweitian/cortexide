@@ -8,8 +8,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAccessor, useIsDark, useSettingsState } from '../util/services.js';
 import { useTranslation } from '../util/useTranslation.js';
 import { Brain, Check, ChevronRight, DollarSign, ExternalLink, Lock, X } from 'lucide-react';
-import { displayInfoOfProviderName, ProviderName, providerNames, localProviderNames, nonlocalProviderNames, featureNames, FeatureName, isFeatureNameDisabled } from '../../../../common/cortexideSettingsTypes.js';
-import { isCapableLocalCoder } from '../../../../common/routing/codingModelScore.js';
+import { displayInfoOfProviderName, ProviderName, providerNames, localProviderNames, featureNames, FeatureName, isFeatureNameDisabled } from '../../../../common/cortexideSettingsTypes.js';
 import { builtinToolCount } from '../../../../common/builtinToolNames.js';
 import { ChatMarkdownRender } from '../markdown/ChatMarkdownRender.js';
 import { OllamaSetupInstructions, OneClickSwitchButton, SettingsForProvider, ModelDump } from '../settings/Settings.js';
@@ -48,26 +47,7 @@ export const VoidOnboarding = () => {
 
 	const isDark = useIsDark()
 
-	// "Use the full guided wizard" escape hatch — flips the express UI off
-	// for power users who want the legacy multi-step flow.
-	const [useExpressFlow, setUseExpressFlow] = useState<boolean>(true)
-
-	// "Capable setup" = the user already has something that can do agentic coding out of the box: a
-	// configured cloud provider, OR a local coder big enough for agentic work (>= 7B). We show the
-	// express flow (which, when ollama is running, auto-pulls the hardware-recommended coder) not only
-	// on a genuine first launch, but also when ollama is running with only tiny/general models and no
-	// capable coder — so a fresh user is never left with a local setup that can't actually do agentic
-	// coding. A user WITH a capable setup skips express; selection is then handled by Auto + the router.
-	const hasCloudProvider = nonlocalProviderNames.some((p) => voidSettingsState.settingsOfProvider[p]?._didFillInProviderSettings)
-	const hasCapableLocalCoder = localProviderNames.some((p) => {
-		const ps = voidSettingsState.settingsOfProvider[p] as { _didFillInProviderSettings?: boolean; models?: { modelName: string }[] } | undefined
-		return !!ps?._didFillInProviderSettings && (ps?.models ?? []).some((m) => isCapableLocalCoder((m.modelName || '').toLowerCase()))
-	})
-	const hasCapableSetup = hasCloudProvider || hasCapableLocalCoder
-
-	// Express path is the default when onboarding is incomplete, the user hasn't opted into the legacy
-	// wizard, and they don't yet have a capable setup for agentic coding.
-	const showExpressFlow = useExpressFlow && !isOnboardingComplete && !hasCapableSetup
+	const showApiForm = !isOnboardingComplete
 
 	return (
 		<div className={`@@void-scope ${isDark ? 'dark' : ''}`}>
@@ -86,19 +66,14 @@ export const VoidOnboarding = () => {
 			>
 				<ErrorBoundary>
 					<div className="w-full max-w-[1200px] py-6">
-						{showExpressFlow ? (
+						{showApiForm ? (
 							<ExpressOnboardingFlow
-								onCustomize={() => setUseExpressFlow(false)}
+								onCustomize={() => { }}
 								onDismiss={() => {
-									// "Skip for now" / "Start chatting" - mark onboarding complete so
-									// the overlay closes. The full settings pane remains reachable
-									// for later configuration.
 									settingsService.setGlobalSetting('isOnboardingComplete', true)
 								}}
 							/>
-						) : (
-							<VoidOnboardingContent />
-						)}
+						) : null}
 					</div>
 				</ErrorBoundary>
 			</div>

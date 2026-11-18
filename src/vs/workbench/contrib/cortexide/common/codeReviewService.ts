@@ -176,11 +176,11 @@ Provide your review annotations as a JSON array:`;
 
 			// Get model selection from settings (use Chat feature model selection)
 			const settings = this.settingsService.state;
-			const modelSelection = this.settingsService.resolveAutoModelSelection(
-				settings.modelSelectionOfFeature['Chat'] || { providerName: 'auto', modelName: 'auto' }
-			);
-
-			if (!modelSelection || modelSelection.providerName === 'auto') {
+			const modelSelection = {
+				providerName: 'deepseek' as const,
+				modelName: settings.globalSettings.openCursorModel?.trim() || 'deepseek-flash',
+			}
+			if (!settings.settingsOfProvider.deepseek?.apiKey) {
 				return {
 					uri,
 					annotations: [],

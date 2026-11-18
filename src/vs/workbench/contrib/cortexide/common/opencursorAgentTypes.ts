@@ -16,6 +16,7 @@ export interface OpenCursorAgentRunRequest {
 	/** When set, written to workspace data/config.json if missing (DeepSeek BYOK). */
 	readonly deepseekApiKey?: string;
 	readonly deepseekEndpoint?: string;
+	readonly deepseekModel?: string;
 }
 
 export type OpenCursorAgentStep = {
@@ -42,13 +43,14 @@ export type OpenCursorAgentProgressEvent =
 	| { type: 'llm'; text: string }
 	| { type: 'tool_start'; tool: string; args: Record<string, string> };
 
-export type OpenCursorPatchOp = 'list' | 'accept' | 'reject' | 'get' | 'restore' | 'reapply';
+export type OpenCursorPatchOp = 'list' | 'accept' | 'reject' | 'get' | 'restore' | 'reapply' | 'canvas' | 'canvas-action';
 
 export interface OpenCursorPatchRequest {
 	readonly workspaceRoot: string;
 	readonly op: OpenCursorPatchOp;
 	readonly runId?: string;
 	readonly patchId?: string;
+	readonly action?: string;
 }
 
 export interface OpenCursorPatchListItem {
@@ -66,4 +68,19 @@ export interface OpenCursorPatchResult {
 	readonly restored?: number;
 	readonly paths?: string[];
 	readonly at?: 'before' | 'after';
+	readonly canvas?: unknown;
+	readonly text?: string;
+}
+
+export interface OpenCursorCompleteRequest {
+	readonly workspaceRoot: string;
+	readonly text: string;
+	readonly cursor: number;
+}
+
+export interface OpenCursorCompleteResult {
+	readonly ok: boolean;
+	readonly completion?: string;
+	readonly via?: string;
+	readonly error?: string;
 }
