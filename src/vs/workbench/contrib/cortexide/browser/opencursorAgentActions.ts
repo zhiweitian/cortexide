@@ -34,7 +34,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const message = await quickInput.input({
-			prompt: localize2('opencursorAgentPrompt', 'Message for agent-core (uses data/config.json + .env in workspace)'),
+			prompt: 'Message for agent-core (uses data/config.json + .env in workspace)',
 			placeHolder: 'e.g. list top-level files',
 		});
 		if (!message?.trim()) {

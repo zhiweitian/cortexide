@@ -154,7 +154,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CORTEXIDE_OPEN_SIDEBAR_ACTION_ID,
-			title: 'Open CortexIDE Sidebar',
+			title: 'OpenCursor: Open Sidebar',
 		});
 	}
 	run(accessor: ServicesAccessor): void {

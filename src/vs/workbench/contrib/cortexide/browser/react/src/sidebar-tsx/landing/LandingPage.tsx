@@ -43,11 +43,11 @@ export const LandingPage = ({
 				<div className='w-20 h-20 rounded-full overflow-hidden' style={{ border: '2px solid var(--vscode-focusBorder, rgba(88,101,242,0.8))', boxShadow: '0 0 16px var(--vscode-focusBorder, rgba(88,101,242,0.4)), 0 4px 20px rgba(0,0,0,0.5)' }}>
 					<img
 						src={logoUri}
-						alt='CortexIDE'
+						alt='OpenCursor'
 						className='w-full h-full object-cover'
 					/>
 				</div>
-				<span className='text-xs text-void-fg-3 tracking-widest uppercase'>CortexIDE</span>
+				<span className='text-xs text-void-fg-3 tracking-widest uppercase'>OpenCursor</span>
 			</div>
 
 			<ErrorBoundary>

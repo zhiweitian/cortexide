@@ -35,7 +35,7 @@ class OpenCursorAgentService extends Disposable implements IOpenCursorAgentServi
 	) {
 		super();
 		this._channel = mainProcessService.getChannel(OPENCURSOR_AGENT_CHANNEL);
-		this._register(this._channel.listen('onStep')((e: OpenCursorAgentProgressEvent) => this._onStep.fire(e)));
+		this._register(this._channel.listen('onStep')((e: unknown) => this._onStep.fire(e as OpenCursorAgentProgressEvent)));
 	}
 
 	run(request: OpenCursorAgentRunRequest): Promise<OpenCursorAgentRunResult> {

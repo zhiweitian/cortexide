@@ -53,7 +53,7 @@ export const ThreadHeader = ({ showHistory, onToggleHistory }: ThreadHeaderProps
 				<button
 					type="button"
 					className="p-1.5 rounded-md text-void-fg-3 hover:text-void-fg-1 hover:bg-void-bg-1 void-focus-ring"
-					aria-label="Open CortexIDE settings"
+					aria-label="OpenCursor settings"
 					title="Settings"
 					onClick={() => commandService.executeCommand(CORTEXIDE_OPEN_SETTINGS_ACTION_ID)}
 				>

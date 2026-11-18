@@ -5592,6 +5592,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 	syncOpenCursorPatchStatus(runId: string, patchId: string, status: 'accepted' | 'rejected', patchPathHint?: string): void {
 		void patchPathHint
 		for (const [threadId, thread] of Object.entries(this.state.allThreads)) {
+			if (!thread) continue
 			for (let idx = 0; idx < thread.messages.length; idx++) {
 				const msg = thread.messages[idx]
 				if (msg.role !== 'opencursor_tool') {
@@ -5629,7 +5630,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 	private async _runOpenCursorAgentCoreBridge({ threadId, message }: { threadId: string; message: string }): Promise<void> {
 		const folder = this._workspaceContextService.getWorkspace().folders[0]
 		if (!folder) {
-			this._setStreamState(threadId, { error: 'Open a workspace folder to use OpenCursor agent-core.' })
+			this._setStreamState(threadId, { isRunning: undefined, error: { message: 'Open a workspace folder to use OpenCursor agent-core.', fullError: null } })
 			return
 		}
 
@@ -5664,8 +5665,10 @@ We only need to do it for files that were edited since `from`, ie files between 
 						reasoningSoFar: '',
 						toolCallSoFar: {
 							name: evt.tool as ToolName,
+							rawParams: (evt.args ?? {}) as RawToolParamsObj,
+							doneParams: [],
+							id: '',
 							isDone: false,
-							rawParams: JSON.stringify(evt.args ?? {}),
 						},
 					},
 					interrupt: Promise.resolve(() => {
@@ -5693,12 +5696,19 @@ We only need to do it for files that were edited since `from`, ie files between 
 				patchStatus: step.patchId ? 'pending' : undefined,
 			})
 			this._setStreamState(threadId, {
-				isRunning: 'tool',
+				isRunning: 'LLM',
 				llmInfo: {
 					displayContentSoFar: '',
 					reasoningSoFar: '',
-					toolCallSoFar: { name: step.tool, isDone: true, rawParams: JSON.stringify(step.args ?? {}) },
+					toolCallSoFar: {
+						name: step.tool as ToolName,
+						rawParams: (step.args ?? {}) as RawToolParamsObj,
+						doneParams: [],
+						id: '',
+						isDone: true,
+					},
 				},
+				interrupt: Promise.resolve(() => { }),
 			})
 		})
 
@@ -5731,7 +5741,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 					this._setStreamState(threadId, undefined)
 					return
 				}
-				this._setStreamState(threadId, { error: result.error ?? 'OpenCursor agent-core failed' })
+				this._setStreamState(threadId, { isRunning: undefined, error: { message: result.error ?? 'OpenCursor agent-core failed', fullError: null } })
 				return
 			}
 			if (userAborted) {
@@ -5790,7 +5800,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 			}
 			this._setStreamState(threadId, undefined)
 		} catch (e) {
-			this._setStreamState(threadId, { error: getErrorMessage(e) })
+			this._setStreamState(threadId, { isRunning: undefined, error: { message: getErrorMessage(e), fullError: e instanceof Error ? e : null } })
 		} finally {
 			onStepSub.dispose()
 		}

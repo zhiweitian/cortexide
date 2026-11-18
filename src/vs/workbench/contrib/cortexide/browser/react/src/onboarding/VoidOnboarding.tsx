@@ -112,11 +112,11 @@ const VoidIcon = () => {
 		<div className="w-full max-w-[220px] aspect-square rounded-full border border-white/10 bg-black shadow-[0_45px_120px_rgba(0,0,0,0.95)] overflow-hidden">
 			<img
 				src={heroLogoUri}
-				alt="CortexIDE logo"
+				alt="OpenCursor logo"
 				className="w-full h-full object-contain opacity-95"
 				draggable={false}
 				onError={(e) => {
-					console.error('Failed to load CortexIDE logo:', heroLogoUri);
+					console.error('Failed to load OpenCursor logo:', heroLogoUri);
 					// Fallback: try direct path
 					const fallbackUri = FileAccess.asBrowserUri('vs/workbench/browser/media/cortexide-main.png').toString(true);
 					if (fallbackUri !== heroLogoUri) {
@@ -226,7 +226,7 @@ const AddProvidersPage = ({ pageIndex, setPageIndex }: { pageIndex: number, setP
 				<p className="text-xs uppercase tracking-[0.35em] text-void-fg-4">Step 02</p>
 				<h2 className="text-4xl font-light text-void-fg-0">Choose your model providers</h2>
 				<p className="text-base text-void-fg-3 max-w-2xl mx-auto md:mx-0">
-					Load multiple providers at once. CortexIDE can route Chat, Quick Edit, and Autocomplete to the strongest model on every request.
+					Load multiple providers at once. OpenCursor can route Chat, Quick Edit, and Autocomplete to the strongest model on every request.
 				</p>
 			</div>
 
@@ -507,7 +507,7 @@ const WelcomePage = ({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
 						<div>
 							<h1 className="text-5xl font-light text-void-fg-0">{t('onboarding.headline')}</h1>
 							<p className="text-base text-void-fg-2 mt-3 max-w-xl mx-auto lg:mx-0">
-								CortexIDE keeps Chat, Quick Edit, Fast Apply, and source control in the same dark workspace-and it adds native PDF + image uploads so product specs and design mocks travel with every conversation.
+								OpenCursor keeps Chat, Quick Edit, Fast Apply, and source control in the same dark workspace-and it adds native PDF + image uploads so product specs and design mocks travel with every conversation.
 							</p>
 						</div>
 						<div className="flex flex-wrap gap-3 justify-center lg:justify-start">

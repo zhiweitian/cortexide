@@ -191,8 +191,8 @@ function registerFileAction({ id, title, kb, task, menuGroup, promptMaker }: {
             const { path, language, fullText, lineCount, diagnostics } = ctx.fileContext
             const userMessage = promptMaker({ path, language, fullText, lineCount, diagnostics })
 
-            const text = `$(sync~spin) CortexIDE working…`
-            const entry = statusbarService.addEntry({ name: 'CortexIDE', text, ariaLabel: 'CortexIDE working', tooltip: title }, `void.fileAction.${task}`, StatusbarAlignment.LEFT)
+            const text = `$(sync~spin) OpenCursor working…`
+            const entry = statusbarService.addEntry({ name: 'OpenCursor', text, ariaLabel: 'OpenCursor working', tooltip: title }, `void.fileAction.${task}`, StatusbarAlignment.LEFT)
 
             try {
                 const threadId = chatThreadsService.state.currentThreadId
@@ -282,7 +282,7 @@ function registerQuickAction({ id, title, kb, task, promptMaker }: {
                 debugCode: 'Debugging…',
             }
             const text = `$(sync~spin) ${verbByTask[task]}`
-            const entry = statusbarService.addEntry({ name: 'CortexIDE', text, ariaLabel: verbByTask[task], tooltip: title }, `void.quickAction.${task}`, StatusbarAlignment.LEFT)
+            const entry = statusbarService.addEntry({ name: 'OpenCursor', text, ariaLabel: verbByTask[task], tooltip: title }, `void.quickAction.${task}`, StatusbarAlignment.LEFT)
 
             try {
                 const threadId = chatThreadsService.state.currentThreadId
@@ -299,7 +299,7 @@ function registerQuickAction({ id, title, kb, task, promptMaker }: {
 // Explain Code
 registerQuickAction({
     id: 'void.explainCode',
-    title: localize2('voidExplainCode', 'CortexIDE: Explain Code'),
+    title: localize2('voidExplainCode', 'OpenCursor: Explain Code'),
     kb: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX,
     task: 'explainCode',
     promptMaker: ({ path, language, startLine, endLine }) => makeUserPayload({
@@ -310,7 +310,7 @@ registerQuickAction({
 // Refactor Code
 registerQuickAction({
     id: 'void.refactorCode',
-    title: localize2('voidRefactorCode', 'CortexIDE: Refactor Code'),
+    title: localize2('voidRefactorCode', 'OpenCursor: Refactor Code'),
     kb: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
     task: 'refactorCode',
     promptMaker: ({ path, language, startLine, endLine }) => makeUserPayload({
@@ -321,7 +321,7 @@ registerQuickAction({
 // Add Tests
 registerQuickAction({
     id: 'void.addTests',
-    title: localize2('voidAddTests', 'CortexIDE: Add Tests'),
+    title: localize2('voidAddTests', 'OpenCursor: Add Tests'),
     kb: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
     task: 'addTests',
     promptMaker: ({ path, language, startLine, endLine }) => makeUserPayload({
@@ -332,7 +332,7 @@ registerQuickAction({
 // Fix Tests
 registerQuickAction({
     id: 'void.fixTests',
-    title: localize2('voidFixTests', 'CortexIDE: Fix Failing Tests'),
+    title: localize2('voidFixTests', 'OpenCursor: Fix Failing Tests'),
     kb: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
     task: 'fixTests',
     promptMaker: ({ path, language, startLine, endLine }) => makeUserPayload({
@@ -343,7 +343,7 @@ registerQuickAction({
 // Write Docstring
 registerQuickAction({
     id: 'void.writeDocstring',
-    title: localize2('voidWriteDocstring', 'CortexIDE: Write Docstring'),
+    title: localize2('voidWriteDocstring', 'OpenCursor: Write Docstring'),
     kb: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyD,
     task: 'writeDocstring',
     promptMaker: ({ path, language, startLine, endLine }) => makeUserPayload({
@@ -354,7 +354,7 @@ registerQuickAction({
 // Optimize Code
 registerQuickAction({
     id: 'void.optimizeCode',
-    title: localize2('voidOptimizeCode', 'CortexIDE: Optimize Code'),
+    title: localize2('voidOptimizeCode', 'OpenCursor: Optimize Code'),
     kb: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
     task: 'optimizeCode',
     promptMaker: ({ path, language, startLine, endLine }) => makeUserPayload({
@@ -365,7 +365,7 @@ registerQuickAction({
 // Debug Code
 registerQuickAction({
     id: 'void.debugCode',
-    title: localize2('voidDebugCode', 'CortexIDE: Debug Code'),
+    title: localize2('voidDebugCode', 'OpenCursor: Debug Code'),
     kb: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
     task: 'debugCode',
     promptMaker: ({ path, language, startLine, endLine }) => makeUserPayload({
@@ -379,7 +379,7 @@ registerQuickAction({
 // Ask About Selection — generic open-ended question about the current selection
 registerFileAction({
     id: 'void.askAboutSelection',
-    title: localize2('voidAskAboutSelection', 'CortexIDE: Ask About Selection'),
+    title: localize2('voidAskAboutSelection', 'OpenCursor: Ask About Selection'),
     task: 'askAboutSelection',
     menuGroup: 'navigation',
     promptMaker: ({ path, language }) =>
@@ -390,7 +390,7 @@ registerFileAction({
 // Explain This File — whole-file explanation, no selection needed
 registerFileAction({
     id: 'void.explainFile',
-    title: localize2('voidExplainFile', 'CortexIDE: Explain This File'),
+    title: localize2('voidExplainFile', 'OpenCursor: Explain This File'),
     task: 'explainFile',
     menuGroup: 'navigation',
     promptMaker: ({ path, language, fullText, lineCount }) => {
@@ -406,7 +406,7 @@ registerFileAction({
 // Fix Lint Errors — passes diagnostics from the marker service into the prompt
 registerFileAction({
     id: 'void.fixLintErrors',
-    title: localize2('voidFixLintErrors', 'CortexIDE: Fix Lint Errors'),
+    title: localize2('voidFixLintErrors', 'OpenCursor: Fix Lint Errors'),
     task: 'fixLintErrors',
     menuGroup: 'navigation',
     promptMaker: ({ path, language, fullText, diagnostics }) => {
@@ -424,7 +424,7 @@ registerFileAction({
 // Summarize Changes — summarizes what the current file does (its role in the project)
 registerFileAction({
     id: 'void.summarizeChanges',
-    title: localize2('voidSummarizeChanges', 'CortexIDE: Summarize Changes'),
+    title: localize2('voidSummarizeChanges', 'OpenCursor: Summarize Changes'),
     task: 'summarizeChanges',
     menuGroup: 'navigation',
     promptMaker: ({ path, language, fullText, lineCount }) => {

@@ -7,7 +7,7 @@ import { ChevronRight, Check, X, FileText, Columns2 } from 'lucide-react';
 import type { OpenCursorToolMessage } from '../../../../../common/chatThreadServiceTypes.js';
 import { useAccessor } from '../../util/services.js';
 import { voidOpenFileFn } from '../shared/pathUtils.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 
 type Props = {
 	message: OpenCursorToolMessage;

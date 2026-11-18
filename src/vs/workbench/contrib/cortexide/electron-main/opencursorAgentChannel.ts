@@ -62,16 +62,16 @@ export class OpenCursorAgentChannel implements IServerChannel {
 		throw new Error(`OpenCursorAgentChannel: no events (listen "${event}")`);
 	}
 
-	async call(_: unknown, command: string, params: OpenCursorAgentRunRequest | OpenCursorPatchRequest): Promise<OpenCursorAgentRunResult | OpenCursorPatchResult> {
+	async call<T>(_: unknown, command: string, params?: unknown): Promise<T> {
 		if (command === 'run') {
-			return this._run(params as OpenCursorAgentRunRequest);
+			return this._run(params as OpenCursorAgentRunRequest) as Promise<T>;
 		}
 		if (command === 'patch') {
-			return this._patch(params as OpenCursorPatchRequest);
+			return this._patch(params as OpenCursorPatchRequest) as Promise<T>;
 		}
 		if (command === 'abort') {
 			this._abortAgentChild();
-			return { ok: true };
+			return { ok: true } as T;
 		}
 		throw new Error(`OpenCursorAgentChannel: unknown command "${command}"`);
 	}

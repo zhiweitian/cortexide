@@ -399,10 +399,10 @@ const SimpleModelSettingsDialog = ({
 
 				{/* Display model recognition status */}
 				<div className="text-sm text-void-fg-3 mb-4">
-					{type === 'default' ? `${modelName} comes packaged with CortexIDE, so you shouldn't need to change these settings.`
+					{type === 'default' ? `${modelName} comes packaged with OpenCursor, so you shouldn't need to change these settings.`
 						: isUnrecognizedModel
-						? `Model not recognized by CortexIDE.`
-						: `CortexIDE recognizes ${modelName} ("${recognizedModelName}").`}
+						? `Model not recognized by OpenCursor.`
+						: `OpenCursor recognizes ${modelName} ("${recognizedModelName}").`}
 				</div>
 
 
@@ -1038,11 +1038,11 @@ export const OllamaSetupInstructions = ({ sayWeAutoDetect }: { sayWeAutoDetect?:
                 if (osName.includes('darwin') || osName.includes('mac')) {
                     // macOS: never use Linux curl. Prefer app or Homebrew cask, bootstrap brew if needed.
                     installCmd = 'bash -lc "set -e; \
-                      if [ -d /Applications/Ollama.app ]; then \\\n+                        echo [CortexIDE] Found /Applications/Ollama.app; open -a Ollama; \\\n+                      else \\\n+                        if [ -x /opt/homebrew/bin/brew ] || [ -x /usr/local/bin/brew ]; then \\\n+                          eval \"$([ -x /opt/homebrew/bin/brew ] && /opt/homebrew/bin/brew shellenv || /usr/local/bin/brew shellenv)\"; \\\n+                        else \\\n+                          echo [CortexIDE] Bootstrapping Homebrew...; /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"; \\\n+                          eval \"$([ -x /opt/homebrew/bin/brew ] && /opt/homebrew/bin/brew shellenv || /usr/local/bin/brew shellenv)\"; \\\n+                        fi; \\\n+                        echo [CortexIDE] Installing Ollama via Homebrew Cask...; brew install --cask ollama || true; open -a Ollama; \\\n+                      fi; \\\n+                      echo [CortexIDE] Health check...; sleep 2; curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && echo [CortexIDE] Ollama running || echo [CortexIDE] Ollama not reachable yet; \
+                      if [ -d /Applications/Ollama.app ]; then \\\n+                        echo [OpenCursor] Found /Applications/Ollama.app; open -a Ollama; \\\n+                      else \\\n+                        if [ -x /opt/homebrew/bin/brew ] || [ -x /usr/local/bin/brew ]; then \\\n+                          eval \"$([ -x /opt/homebrew/bin/brew ] && /opt/homebrew/bin/brew shellenv || /usr/local/bin/brew shellenv)\"; \\\n+                        else \\\n+                          echo [OpenCursor] Bootstrapping Homebrew...; /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"; \\\n+                          eval \"$([ -x /opt/homebrew/bin/brew ] && /opt/homebrew/bin/brew shellenv || /usr/local/bin/brew shellenv)\"; \\\n+                        fi; \\\n+                        echo [OpenCursor] Installing Ollama via Homebrew Cask...; brew install --cask ollama || true; open -a Ollama; \\\n+                      fi; \\\n+                      echo [OpenCursor] Health check...; sleep 2; curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && echo [OpenCursor] Ollama running || echo [OpenCursor] Ollama not reachable yet; \
                     "'
                 } else {
                     // Linux: official script only
-                    installCmd = 'bash -lc "set -e; echo [CortexIDE] Installing Ollama (Linux); curl -fsSL https://ollama.com/install.sh | sh; (ollama serve >/dev/null 2>&1 &) || true; sleep 2; echo [CortexIDE] Health check; curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && echo [CortexIDE] Ollama running || echo [CortexIDE] Ollama not reachable yet;"'
+                    installCmd = 'bash -lc "set -e; echo [OpenCursor] Installing Ollama (Linux); curl -fsSL https://ollama.com/install.sh | sh; (ollama serve >/dev/null 2>&1 &) || true; sleep 2; echo [OpenCursor] Health check; curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && echo [OpenCursor] Ollama running || echo [OpenCursor] Ollama not reachable yet;"'
                 }
             }
 
@@ -1475,7 +1475,7 @@ export const OllamaSetupInstructions = ({ sayWeAutoDetect }: { sayWeAutoDetect?:
         </div>
         <div className=' pl-6'><ChatMarkdownRender string={`1. If the install does not start, download Ollama manually from [ollama.com/download](https://ollama.com/download).`} chatMessageLocation={undefined} /></div>
         <div className=' pl-6'><ChatMarkdownRender string={`2. Optionally, run \`ollama pull llama3.1\` to install a starter model.`} chatMessageLocation={undefined} /></div>
-        {sayWeAutoDetect && <div className=' pl-6'><ChatMarkdownRender string={`CortexIDE automatically detects locally running models and enables them.`} chatMessageLocation={undefined} /></div>}
+        {sayWeAutoDetect && <div className=' pl-6'><ChatMarkdownRender string={`OpenCursor automatically detects locally running models and enables them.`} chatMessageLocation={undefined} /></div>}
     </div>
 }
 
@@ -1812,7 +1812,7 @@ export const Settings = () => {
 
 					<div className='max-w-3xl'>
 
-						<h1 className='text-2xl w-full'>{`CortexIDE Settings`}</h1>
+						<h1 className='text-2xl w-full'>{`OpenCursor Settings`}</h1>
 
 						<div className='w-full h-[1px] my-2' />
 
@@ -1840,7 +1840,7 @@ export const Settings = () => {
 							<div className={shouldShowTab('localProviders') ? `` : 'hidden'}>
 								<ErrorBoundary>
 									<h2 className={`text-3xl mb-2`}>Local Providers</h2>
-							<h3 className={`text-void-fg-3 mb-2`}>{`CortexIDE can access any model that you host locally. We automatically detect your local models by default.`}</h3>
+							<h3 className={`text-void-fg-3 mb-2`}>{`OpenCursor can access any model that you host locally. We automatically detect your local models by default.`}</h3>
 
 									<div className='opacity-80 mb-4'>
 										<OllamaSetupInstructions sayWeAutoDetect={true} />
@@ -1854,7 +1854,7 @@ export const Settings = () => {
 							<div className={shouldShowTab('providers') ? `` : 'hidden'}>
 								<ErrorBoundary>
 									<h2 className={`text-3xl mb-2`}>Main Providers</h2>
-							<h3 className={`text-void-fg-3 mb-2`}>{`CortexIDE can access models from Anthropic, OpenAI, OpenRouter, and more.`}</h3>
+							<h3 className={`text-void-fg-3 mb-2`}>{`OpenCursor can access models from Anthropic, OpenAI, OpenRouter, and more.`}</h3>
 
 									<VoidProviderSettings providerNames={nonlocalProviderNames} />
 									<div className='w-full h-[1px] my-4' />
@@ -1997,7 +1997,7 @@ export const Settings = () => {
 											<div>
 												<h4 className={`text-base`}>Routing policy</h4>
 												<div className='text-sm text-void-fg-3 mt-1'>
-													Controls how CortexIDE picks between configured model providers. Free-tier ladder tracks per-provider quotas and auto-fails-over on 429.
+													Controls how OpenCursor picks between configured model providers. Free-tier ladder tracks per-provider quotas and auto-fails-over on 429.
 												</div>
 												<div className='my-2'>
 													<select
@@ -2085,7 +2085,7 @@ export const Settings = () => {
 
 										<div className='w-full'>
 											<h4 className={`text-base`}>Editor</h4>
-								<div className='text-sm text-void-fg-3 mt-1'>{`Settings that control the visibility of CortexIDE suggestions in the code editor.`}</div>
+								<div className='text-sm text-void-fg-3 mt-1'>{`Settings that control the visibility of OpenCursor suggestions in the code editor.`}</div>
 
 											<div className='my-2'>
 												{/* Auto Accept Switch */}
@@ -2138,7 +2138,7 @@ export const Settings = () => {
 								<div>
 									<ErrorBoundary>
 										<h2 className='text-3xl mb-2'>One-Click Switch</h2>
-						<h4 className='text-void-fg-3 mb-4'>{`Transfer your editor settings into CortexIDE.`}</h4>
+						<h4 className='text-void-fg-3 mb-4'>{`Transfer your editor settings into OpenCursor.`}</h4>
 
 										<div className='flex flex-col gap-2'>
 											<OneClickSwitchButton className='w-48' fromEditor="VS Code" />
@@ -2151,7 +2151,7 @@ export const Settings = () => {
 								{/* Import/Export section */}
 								<div>
 									<h2 className='text-3xl mb-2'>Import/Export</h2>
-							<h4 className='text-void-fg-3 mb-4'>{`Transfer CortexIDE's settings and chats in and out of CortexIDE.`}</h4>
+							<h4 className='text-void-fg-3 mb-4'>{`Transfer OpenCursor's settings and chats in and out of OpenCursor.`}</h4>
 									<div className='flex flex-col gap-8'>
 										{/* Settings Subcategory */}
 										<div className='flex flex-col gap-2 max-w-48 w-full'>
@@ -2212,7 +2212,7 @@ export const Settings = () => {
 								{/* Metrics section */}
 								<div className='max-w-[600px]'>
 									<h2 className={`text-3xl mb-2`}>Metrics</h2>
-							<h4 className={`text-void-fg-3 mb-4`}>Very basic anonymous usage tracking helps us keep CortexIDE running smoothly. You may opt out below. Regardless of this setting, CortexIDE never sees your code, messages, or API keys.</h4>
+							<h4 className={`text-void-fg-3 mb-4`}>Very basic anonymous usage tracking helps us keep OpenCursor running smoothly. You may opt out below. Regardless of this setting, OpenCursor never sees your code, messages, or API keys.</h4>
 
 									<div className='my-2'>
 										{/* Disable All Metrics Switch */}
@@ -2262,7 +2262,7 @@ For project-scoped rules, use \`.cortexide/rules/*.md\` files — see Project Ru
 											</div>
 										</ErrorBoundary>
 										<div className='text-void-fg-3 text-xs mt-1'>
-								{`When disabled, CortexIDE will not include anything in the system message except for content you specified above.`}
+								{`When disabled, OpenCursor will not include anything in the system message except for content you specified above.`}
 										</div>
 									</div>
 								</div>

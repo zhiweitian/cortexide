@@ -313,7 +313,7 @@ const ChoiceStep = ({ onChoice, onBack }: {onChoice: (choice: 'local' | 'cloud' 
 			<div className="text-center space-y-4">
 				<h2 className="text-4xl font-light text-fg-0">Choose your setup</h2>
 				<p className="text-fg-3 max-w-2xl mx-auto">
-					Get started with CortexIDE. Choose local models for privacy, or use cloud providers.
+					Get started with OpenCursor. Choose local models for privacy, or use cloud providers.
 				</p>
 			</div>
 
@@ -676,13 +676,13 @@ const DefaultsStep = ({ onComplete, onBack, canGoBack }: {onComplete: () => void
 				<Check className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
 				<h2 className="text-3xl font-light text-fg-0 mb-4">Setup Complete!</h2>
 				<p className="text-fg-3 mb-8 max-w-2xl mx-auto">
-					Your local models are configured and ready to use. CortexIDE will use local models by default.
+					Your local models are configured and ready to use. OpenCursor will use local models by default.
 				</p>
 				<button
           onClick={onComplete}
           className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[var(--cortex-brand)] to-[var(--cortex-brand-dim)] text-white font-medium text-lg">
 
-					Start using CortexIDE
+					Start using OpenCursor
 				</button>
 			</div>
 		</div>);
