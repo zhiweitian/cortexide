@@ -123,7 +123,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CORTEXIDE_TOGGLE_SETTINGS_ACTION_ID,
-			title: nls.localize2('voidSettings', "CortexIDE: Toggle Settings"),
+			title: nls.localize2('voidSettings', "OpenCursor: Toggle Settings"),
 			icon: Codicon.settingsGear,
 			menu: [
 				{
@@ -172,7 +172,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CORTEXIDE_OPEN_SETTINGS_ACTION_ID,
-			title: nls.localize2('voidSettingsAction2', "CortexIDE: Open Settings"),
+			title: nls.localize2('voidSettingsAction2', "OpenCursor: Open Settings"),
 			f1: true,
 			icon: Codicon.settingsGear,
 		});
@@ -202,7 +202,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '0_command',
 	command: {
 		id: CORTEXIDE_TOGGLE_SETTINGS_ACTION_ID,
-		title: nls.localize('voidSettingsActionGear', "CortexIDE Settings")
+		title: nls.localize('voidSettingsActionGear', "OpenCursor Settings")
 	},
 	order: 1
 });

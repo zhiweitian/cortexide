@@ -1355,11 +1355,11 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		const { from, } = opts
 		const featureName: FeatureName = opts.from === 'ClickApply' ? 'Apply' : 'Ctrl+K'
 		const overridesOfModel = this._settingsService.state.overridesOfModel
-		const modelSelection = this._settingsService.state.modelSelectionOfFeature[featureName]
-		// Skip "auto" - it's not a real provider
-		const modelSelectionOptions = modelSelection && !(modelSelection.providerName === 'auto' && modelSelection.modelName === 'auto')
-			? this._settingsService.state.optionsOfModelSelection[featureName][modelSelection.providerName]?.[modelSelection.modelName]
-			: undefined
+		const modelSelection = {
+			providerName: 'deepseek' as const,
+			modelName: this._settingsService.state.globalSettings.openCursorModel?.trim() || 'deepseek-flash',
+		}
+		const modelSelectionOptions = undefined
 
 
 		const uri = this._getURIBeforeStartApplying(opts)
@@ -1397,11 +1397,10 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		let separateSystemMessage: string | undefined
 
 		// Detect if using local model for minimal prompts and code pruning
-		const isLocal = modelSelection && modelSelection.providerName !== 'auto' && isLocalProvider(modelSelection.providerName, this._settingsService.state.settingsOfProvider)
+		const isLocal = isLocalProvider(modelSelection.providerName, this._settingsService.state.settingsOfProvider)
 
 		// Warm up local model in background (fire-and-forget, doesn't block)
-		// This reduces first-request latency for Ctrl+K/Apply on local models
-		if (modelSelection && modelSelection.providerName !== 'auto' && modelSelection.modelName !== 'auto') {
+		if (modelSelection.modelName !== 'auto') {
 			try {
 				this._modelWarmupService.warmupModelIfNeeded(modelSelection.providerName, modelSelection.modelName, featureName)
 			} catch (e) {
@@ -1664,11 +1663,11 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		const { from, applyStr, } = opts
 		const featureName: FeatureName = 'Apply'
 		const overridesOfModel = this._settingsService.state.overridesOfModel
-		const modelSelection = this._settingsService.state.modelSelectionOfFeature[featureName]
-		// Skip "auto" - it's not a real provider
-		const modelSelectionOptions = modelSelection && !(modelSelection.providerName === 'auto' && modelSelection.modelName === 'auto')
-			? this._settingsService.state.optionsOfModelSelection[featureName][modelSelection.providerName]?.[modelSelection.modelName]
-			: undefined
+		const modelSelection = {
+			providerName: 'deepseek' as const,
+			modelName: this._settingsService.state.globalSettings.openCursorModel?.trim() || 'deepseek-flash',
+		}
+		const modelSelectionOptions = undefined
 
 		const uri = this._getURIBeforeStartApplying(opts)
 		if (!uri) return
@@ -1684,11 +1683,9 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		const userMessageContent = searchReplaceGivenDescription_userMessage({ originalCode: originalFileCode, applyStr: applyStr })
 
 		// Detect if local provider for minimal prompts
-		const isLocal = modelSelection && modelSelection.providerName !== 'auto' && isLocalProvider(modelSelection.providerName, this._settingsService.state.settingsOfProvider)
+		const isLocal = isLocalProvider(modelSelection.providerName, this._settingsService.state.settingsOfProvider)
 
-		// Warm up local model in background (fire-and-forget, doesn't block)
-		// This reduces first-request latency for Apply on local models
-		if (modelSelection && modelSelection.providerName !== 'auto' && modelSelection.modelName !== 'auto') {
+		if (modelSelection.modelName !== 'auto') {
 			try {
 				this._modelWarmupService.warmupModelIfNeeded(modelSelection.providerName, modelSelection.modelName, featureName)
 			} catch (e) {

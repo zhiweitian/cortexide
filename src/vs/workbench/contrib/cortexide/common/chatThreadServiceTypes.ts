@@ -53,6 +53,8 @@ export type CheckpointEntry = {
 	type: 'user_edit' | 'tool_edit';
 	/** Set when this row is an OpenCursor agent-core run. Click restores that run's snapshot. */
 	openCursorRunId?: string;
+	/** True after the run's files were rolled back to the snapshot. */
+	openCursorRestored?: boolean;
 	voidFileSnapshotOfURI: { [fsPath: string]: CortexideFileSnapshot | undefined };
 
 	userModifications: {

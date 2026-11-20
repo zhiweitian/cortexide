@@ -30,15 +30,12 @@ const notifyUpdate = (res: CortexideCheckUpdateResponse & { message: string }, n
 
 		if (res.action === 'reinstall') {
 			primary.push({
-				label: `Reinstall`,
+				label: `Close`,
 				id: 'void.updater.reinstall',
 				enabled: true,
 				tooltip: '',
 				class: undefined,
-				run: () => {
-					const { window } = dom.getActiveWindow()
-					window.open('https://opencortexide.com')
-				}
+				run: () => { }
 			})
 		}
 

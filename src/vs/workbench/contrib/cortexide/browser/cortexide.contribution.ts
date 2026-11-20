@@ -14,8 +14,7 @@ import './sidebarPane.js'
 // register quick edit (Ctrl+K)
 import './quickEditActions.js'
 
-// register Quick Actions
-import './quickActions.js'
+// Quick Actions (Explain / Refactor / …) are not part of OpenCursor.
 
 
 // register Autocomplete
@@ -34,19 +33,12 @@ import './media/cortexide.css'
 // update (frontend part, also see platform/)
 import './cortexideUpdateActions.js'
 
-// OpenCursor monorepo agent-core bridge (experimental)
+// OpenCursor agent-core bridge. Chat calls the service directly; the experimental command palette action is not registered.
 import '../common/opencursorAgentService.js'
 import '../common/opencursorPatchService.js'
-import './opencursorAgentActions.js'
 import './opencursorPatchActions.js'
+import './opencursorCanvasPane.js'
 import './opencursorStatusBar.js'
-
-// privacy report (Phase 8): "what can leave my machine" command
-import './cortexidePrivacyReportActions.js'
-// audit log (Phase 8): "Show Audit Log" view of the tamper-evident dangerous-action record
-import './auditLogViewActions.js'
-// RAG (Phase 4): register a local Ollama embedding provider when configured (hybrid BM25 + vector retrieval)
-import './ollamaEmbeddingProviderService.js'
 
 import './convertToLLMMessageWorkbenchContrib.js'
 
@@ -57,8 +49,7 @@ import './terminalToolService.js'
 // register Thread History
 import './chatThreadService.js'
 
-// ping - lazy load after startup
-import('./metricsPollService.js').catch(() => { });
+// Usage ping is off. OpenCursor does not report telemetry.
 
 // helper services
 import './helperServices/consistentItemService.js'
@@ -102,21 +93,12 @@ import './memoriesTrackingContribution.js'
 // edit risk scoring
 import '../common/editRiskScoringService.js'
 
-// code review
-import '../common/codeReviewService.js'
-import './codeReviewEditorContribution.js'
-import './codeReviewCommands.js'
-
-// codebase query - lazy load (only needed when user invokes codebase query command)
-import('./codebaseQueryCommands.js').catch(() => { });
+// code review service stays registered for leftover call sites. The command and editor UI are not registered.
 
 // NL shell parser - lazy load (only needed when NL shell parsing is used)
 import('../common/nlShellParserService.js').catch(() => { });
 
-// error detection
-import '../common/errorDetectionService.js'
-import './errorDetectionEditorContribution.js'
-import './errorDetectionCommands.js'
+// error detection commands are not registered.
 
 // performance guardrails
 import '../common/performanceGuardrailsService.js'
@@ -157,17 +139,14 @@ import '../common/cortexideModelService.js'
 // model warm-up service
 import '../common/modelWarmupService.js'
 
-// ollama installer service (main-process proxy) - lazy load (only needed when Ollama is accessed)
-import('../common/ollamaInstallerService.js').catch(() => { });
 
 // allow-any-unicode-next-line
-// local setup service — guided local model wizard
+// local setup service — guided local model wizard (settings page is not shown)
 import '../common/localSetupService.js'
+import '../common/ollamaInstallerService.js'
 
 // repo indexer
 import './repoIndexerService.js'
-// repo indexer actions - lazy load (only needed when user invokes indexer actions)
-import('./repoIndexerActions.js').catch(() => { });
 
 // Image QA Registry initialization
 import './imageQARegistryContribution.js'

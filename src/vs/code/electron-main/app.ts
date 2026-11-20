@@ -1406,7 +1406,7 @@ export class CodeApplication extends Disposable {
 		const hooksRunnerChannel = new HooksRunnerChannel();
 		mainProcessElectronServer.registerChannel('void-channel-hooksRunner', hooksRunnerChannel);
 
-		const openCursorAgentChannel = new OpenCursorAgentChannel();
+		const openCursorAgentChannel = new OpenCursorAgentChannel(app.getAppPath());
 		mainProcessElectronServer.registerChannel('opencursor-channel-agent', openCursorAgentChannel);
 
 		// Extension Host Debug Broadcasting

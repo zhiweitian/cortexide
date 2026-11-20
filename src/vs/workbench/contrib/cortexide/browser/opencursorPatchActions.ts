@@ -13,6 +13,10 @@ import { IChatThreadService } from './chatThreadService.js';
 import { openOpenCursorPatchDiff, reloadOpenCursorPatchedFile } from './opencursorPatchHelpers.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { IEditCodeService } from './editCodeServiceInterface.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 
 type PatchPick = IQuickPickItem & { runId: string; patchId: string; path: string };
 
@@ -253,5 +257,148 @@ registerAction2(class extends Action2 {
 			return;
 		}
 		await openOpenCursorPatchDiff(accessor, selected.path, selected.oldContent ?? '', selected.newContent ?? '');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			f1: true,
+			id: 'opencursor.rebuildFileIndex',
+			title: localize2('opencursorRebuildFileIndex', 'OpenCursor: Rebuild file index'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const workspace = accessor.get(IWorkspaceContextService);
+		const patches = accessor.get(IOpenCursorPatchService);
+		const notifications = accessor.get(INotificationService);
+		const folder = workspace.getWorkspace().folders[0];
+		if (!folder) {
+			notifications.warn('Open a workspace folder first.');
+			return;
+		}
+		const res = await patches.patch({ workspaceRoot: folder.uri.fsPath, op: 'index' });
+		if (!res.ok) {
+			notifications.error(res.error || 'Index failed');
+			return;
+		}
+		notifications.info(`Indexed ${res.files ?? 0} files.`);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			f1: true,
+			id: 'opencursor.rebuildSemanticIndex',
+			title: localize2('opencursorRebuildSemanticIndex', 'OpenCursor: Rebuild semantic index'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const workspace = accessor.get(IWorkspaceContextService);
+		const patches = accessor.get(IOpenCursorPatchService);
+		const notifications = accessor.get(INotificationService);
+		const folder = workspace.getWorkspace().folders[0];
+		if (!folder) {
+			notifications.warn('Open a workspace folder first.');
+			return;
+		}
+		const res = await patches.patch({ workspaceRoot: folder.uri.fsPath, op: 'embed' });
+		if (!res.ok) {
+			notifications.error(res.error || 'Semantic index failed');
+			return;
+		}
+		notifications.info(`Semantic index: ${res.chunks ?? 0} chunks (${res.embedder || 'hash'}).`);
+	}
+});
+
+function relFromEditorUri(uri: URI, folder: URI): string | undefined {
+	const path = uri.path.replace(/\\/g, '/');
+	const marked = path.match(/(?:^|\/)opencursor\/(.+) \((?:before|after)\)$/);
+	if (marked?.[1]) {
+		return marked[1];
+	}
+	if (uri.scheme !== 'file' && uri.scheme !== folder.scheme) {
+		return undefined;
+	}
+	const root = folder.path.replace(/\\/g, '/').replace(/\/$/, '');
+	if (path === root || path.startsWith(root + '/')) {
+		return path.slice(root.length + 1);
+	}
+	return undefined;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			f1: false,
+			id: 'opencursor.applyEditorPatch',
+			title: localize2('opencursorApplyEditorPatch', 'OpenCursor: Apply editor patch'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, op: 'accept' | 'reject', allInFile: boolean): Promise<boolean> {
+		const folder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0];
+		if (!folder) {
+			return false;
+		}
+		const editorService = accessor.get(IEditorService);
+		const uris = [
+			EditorResourceAccessor.getCanonicalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }),
+			EditorResourceAccessor.getCanonicalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.SECONDARY }),
+		].filter((uri): uri is URI => !!uri);
+		const rels = new Set(uris.map(uri => relFromEditorUri(uri, folder.uri)).filter((rel): rel is string => !!rel));
+		if (!rels.size) {
+			return false;
+		}
+		const patches = accessor.get(IOpenCursorPatchService);
+		const list = await patches.patch({ workspaceRoot: folder.uri.fsPath, op: 'list' });
+		if (!list.ok) {
+			return false;
+		}
+		const matches: { runId: string; patchId: string }[] = [];
+		for (const run of list.runs ?? []) {
+			if (!run.pending) {
+				continue;
+			}
+			const detail = await patches.patch({ workspaceRoot: folder.uri.fsPath, op: 'get', runId: run.id });
+			const items = (detail.run as { patches?: { id: string; path: string; status: string }[] } | undefined)?.patches ?? [];
+			for (const item of items) {
+				if (item.status === 'pending' && rels.has(item.path)) {
+					matches.push({ runId: run.id, patchId: item.id });
+				}
+			}
+		}
+		if (!matches.length) {
+			return false;
+		}
+		const chosen = allInFile ? matches : [matches[matches.length - 1]];
+		const chat = accessor.get(IChatThreadService);
+		const fileService = accessor.get(IFileService);
+		const modelService = accessor.get(IModelService);
+		const editCode = accessor.get(IEditCodeService);
+		const touched = new Set<string>();
+		let applied = false;
+		for (const item of chosen) {
+			const result = await patches.patch({ workspaceRoot: folder.uri.fsPath, op, runId: item.runId, patchId: item.patchId });
+			if (!result.ok) {
+				continue;
+			}
+			applied = true;
+			chat.syncOpenCursorPatchStatus(item.runId, item.patchId, op === 'accept' ? 'accepted' : 'rejected', result.patch?.path);
+			if (result.patch?.path) {
+				touched.add(result.patch.path);
+			}
+		}
+		for (const rel of touched) {
+			const uri = URI.joinPath(folder.uri, rel);
+			await editCode.acceptOrRejectAllDiffAreas({ uri, removeCtrlKs: false, behavior: op === 'accept' ? 'accept' : 'reject' });
+			if (op === 'accept') {
+				await reloadOpenCursorPatchedFile(folder.uri, rel, fileService, modelService);
+			}
+		}
+		return applied;
 	}
 });

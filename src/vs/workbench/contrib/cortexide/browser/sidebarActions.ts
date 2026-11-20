@@ -25,13 +25,13 @@ import { CORTEXIDE_ATTACH_FILE_TO_CHAT_ACTION_ID, CORTEXIDE_CTRL_L_ACTION_ID } f
 import { localize2 } from '../../../../nls.js';
 import { IChatThreadService } from './chatThreadService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { collectAttachableUris } from '../common/attachFileToChat.js';
+import { toggleChatHistory } from './chatHistoryPanel.js';
 
 // ---------- Register commands and keybindings ----------
 
@@ -74,7 +74,7 @@ export const roundRangeToLines = (range: IRange | null | undefined, options: { e
 const CORTEXIDE_OPEN_SIDEBAR_ACTION_ID = 'cortexide.sidebar.open'
 registerAction2(class extends Action2 {
 	constructor() {
-		super({ id: CORTEXIDE_OPEN_SIDEBAR_ACTION_ID, title: localize2('voidOpenSidebar', 'CortexIDE: Open Sidebar'), f1: true });
+		super({ id: CORTEXIDE_OPEN_SIDEBAR_ACTION_ID, title: localize2('voidOpenSidebar', 'OpenCursor: Open Chat'), f1: true });
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService)
@@ -91,7 +91,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_CTRL_L_ACTION_ID,
 			f1: true,
-			title: localize2('voidCmdL', 'CortexIDE: Add Selection to Chat'),
+			title: localize2('voidCmdL', 'OpenCursor: Add Selection to Chat'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyL,
 				weight: KeybindingWeight.ExternalExtension
@@ -154,31 +154,6 @@ registerAction2(class extends Action2 {
 })
 
 
-// R7: start a background agent (runs on a hidden thread without blocking the active chat)
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'cortexide.runBackgroundAgent',
-			f1: true,
-			title: localize2('cortexideRunBackgroundAgent', 'CortexIDE: Start a Background Agent'),
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const chatThreadService = accessor.get(IChatThreadService)
-		const quickInputService = accessor.get(IQuickInputService)
-		const prompt = await quickInputService.input({
-			title: 'Start a Background Agent',
-			prompt: 'Describe the task. It runs on a hidden thread without blocking your chat; track it in the "Running agents" panel.',
-			placeHolder: 'e.g. Add unit tests for src/utils/date.ts and run them',
-		})
-		const trimmed = (prompt ?? '').trim()
-		if (!trimmed) { return }
-		const description = trimmed.length > 60 ? trimmed.slice(0, 57) + '...' : trimmed
-		await chatThreadService.startBackgroundAgent(description, trimmed)
-	}
-})
-
-
 // New chat keybind + menu button
 const CORTEXIDE_CMD_SHIFT_L_ACTION_ID = 'cortexide.cmdShiftL'
 registerAction2(class extends Action2 {
@@ -191,7 +166,6 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.ExternalExtension,
 			},
 			icon: { id: 'add' },
-			menu: [{ id: MenuId.ViewTitle, group: 'navigation', when: ContextKeyExpr.equals('view', CORTEXIDE_VIEW_ID), }],
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -252,21 +226,9 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-
-		// do not do anything if there are no messages (without this it clears all of the user's selections if the button is pressed)
-		// TODO the history button should be disabled in this case so we can remove this logic
-		const thread = accessor.get(IChatThreadService).getCurrentThread()
-		if (thread.messages.length === 0) {
-			return;
-		}
-
 		const metricsService = accessor.get(IMetricsService)
-
-		const commandService = accessor.get(ICommandService)
-
 		metricsService.capture('Chat Navigation', { type: 'History' })
-		commandService.executeCommand(CORTEXIDE_CMD_SHIFT_L_ACTION_ID)
-
+		toggleChatHistory()
 	}
 })
 
@@ -276,7 +238,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'void.settingsAction',
-			title: `CortexIDE Settings`,
+			title: `OpenCursor Settings`,
 			icon: { id: 'settings-gear' },
 			menu: [{ id: MenuId.ViewTitle, group: 'navigation', when: ContextKeyExpr.equals('view', CORTEXIDE_VIEW_ID), }]
 		});
@@ -284,76 +246,6 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService)
 		commandService.executeCommand(CORTEXIDE_TOGGLE_SETTINGS_ACTION_ID)
-	}
-})
-
-// Web Search command
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'void.webSearch',
-			title: localize2('voidWebSearch', 'CortexIDE: Search the Web'),
-			category: localize2('voidCategory', 'CortexIDE'),
-			f1: true,
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const chatThreadsService = accessor.get(IChatThreadService)
-		const viewsService = accessor.get(IViewsService)
-		const quickInputService = accessor.get(IQuickInputService)
-
-		// Open chat sidebar
-		viewsService.openViewContainer(CORTEXIDE_VIEW_CONTAINER_ID)
-		await chatThreadsService.focusCurrentChat()
-
-		// Prompt for search query
-		const query = await quickInputService.input({
-			placeHolder: localize2('voidWebSearchPlaceholder', 'Enter your search query...').value,
-			prompt: localize2('voidWebSearchPrompt', 'Search the web for information').value,
-		}).then((result: string | undefined) => result);
-
-		if (!query) return;
-
-		const threadId = chatThreadsService.state.currentThreadId
-		await chatThreadsService.addUserMessageAndStreamResponse({
-			userMessage: `Search the web for: ${query}`,
-			threadId,
-		})
-	}
-})
-
-// Browse URL command
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'void.browseUrl',
-			title: localize2('voidBrowseUrl', 'CortexIDE: Open URL in Reader'),
-			category: localize2('voidCategory', 'CortexIDE'),
-			f1: true,
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const chatThreadsService = accessor.get(IChatThreadService)
-		const viewsService = accessor.get(IViewsService)
-		const quickInputService = accessor.get(IQuickInputService)
-
-		// Open chat sidebar
-		viewsService.openViewContainer(CORTEXIDE_VIEW_CONTAINER_ID)
-		await chatThreadsService.focusCurrentChat()
-
-		// Prompt for URL
-		const url = await quickInputService.input({
-			placeHolder: localize2('voidBrowseUrlPlaceholder', 'Enter URL (https://...)').value,
-			prompt: localize2('voidBrowseUrlPrompt', 'Fetch and extract content from URL').value,
-		}).then((result: string | undefined) => result);
-
-		if (!url) return;
-
-		const threadId = chatThreadsService.state.currentThreadId
-		await chatThreadsService.addUserMessageAndStreamResponse({
-			userMessage: `Browse URL: ${url}`,
-			threadId,
-		})
 	}
 })
 

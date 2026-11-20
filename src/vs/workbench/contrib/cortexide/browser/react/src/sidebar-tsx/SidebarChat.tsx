@@ -9,6 +9,7 @@ import { useAccessor, useChatThreadsState, useChatThreadsStreamState, useSetting
 
 import { TextAreaFns } from '../util/inputs.js';
 import { PastThreadsList } from './SidebarThreadSelector.js';
+import { isChatHistoryOpen, onDidChangeChatHistory } from '../../../chatHistoryPanel.js';
 import { scrollToBottom } from './composer/ScrollToBottomContainer.js';
 import { ChatMessageList } from './composer/ChatMessageList.js';
 import { ComposerInputSection } from './composer/ComposerInputSection.js';
@@ -17,16 +18,13 @@ import { resolveAtReferencesInMessage } from '../../../../common/resolveAtRefere
 import { handleSlashCommand } from './composer/handleSlashCommand.js';
 import { prepareChatSubmitAttachments } from './composer/prepareChatSubmit.js';
 import { useVisionAttachmentHandlers } from './composer/useVisionAttachmentHandlers.js';
-import { LandingPage } from './landing/LandingPage.js';
 import { ComposerTabs } from './chrome/ComposerTabs.js';
-import { ThreadHeader } from './chrome/ThreadHeader.js';
 import { CORTEXIDE_OPEN_SETTINGS_ACTION_ID } from '../../../cortexideSettingsPane.js';
 import { isFeatureNameDisabled } from '../../../../../../../workbench/contrib/cortexide/common/cortexideSettingsTypes.js';
 import { StagingSelectionItem } from '../../../../common/chatThreadServiceTypes.js';
 import ErrorBoundary from './ErrorBoundary.js';
 import { useImageAttachments } from '../util/useImageAttachments.js';
 import { usePDFAttachments } from '../util/usePDFAttachments.js';
-import { useTranslation } from '../util/useTranslation.js';
 
 type CanvasDoc = {
 	title: string
@@ -34,48 +32,87 @@ type CanvasDoc = {
 	lastAction?: string
 }
 
-const OpenCursorCanvas = ({ refreshKey }: { refreshKey: string }) => {
+const CanvasLink = ({ refreshKey }: { refreshKey: string }) => {
 	const accessor = useAccessor()
 	const patches = accessor.get('IOpenCursorPatchService')
 	const workspace = accessor.get('IWorkspaceContextService')
-	const [doc, setDoc] = useState<CanvasDoc | null>(null)
+	const commandService = accessor.get('ICommandService')
+	const [title, setTitle] = useState('')
 
 	useEffect(() => {
 		const folder = workspace.getWorkspace().folders[0]
-		if (!folder) return
+		if (!folder) {
+			setTitle('')
+			return
+		}
 		let stop = false
 		patches.patch({ workspaceRoot: folder.uri.fsPath, op: 'canvas' }).then((res) => {
-			if (!stop) setDoc((res.canvas as CanvasDoc | undefined) ?? null)
+			if (stop) return
+			const doc = res.canvas as CanvasDoc | undefined
+			setTitle(doc?.title || '')
 		}).catch(() => { })
 		return () => { stop = true }
 	}, [refreshKey, patches, workspace])
 
-	if (!doc) return null
+	if (!title) return null
 	return (
-		<div className="shrink-0 max-h-[32%] overflow-y-auto border-t border-void-border-3 px-3 py-2 text-xs">
-			<div className="font-semibold mb-1">{doc.title}</div>
-			{(doc.blocks || []).map((block, i) => {
-				if (block.type === 'button') {
-					return <button key={i} className="mr-2 underline" onClick={() => {
-						const folder = workspace.getWorkspace().folders[0]
-						if (!folder) return
-						void patches.patch({
-							workspaceRoot: folder.uri.fsPath,
-							op: 'canvas-action',
-							action: String(block.action || block.label || ''),
-						}).then((res) => setDoc((res.canvas as CanvasDoc | undefined) ?? doc))
-					}}>{String(block.label || block.action || 'Action')}</button>
-				}
-				if (block.type === 'table') {
-					return <div key={i}>{(block.rows || []).map((row: string[], r: number) => <div key={r}>{row.join(' · ')}</div>)}</div>
-				}
-				if (block.type === 'timeline' || block.type === 'todos') {
-					return <div key={i}>{(block.items || []).map((item: { time?: string; title?: string }, r: number) => <div key={r}>{[item.time, item.title].filter(Boolean).join(' ')}</div>)}</div>
-				}
-				const line = block.text || (block.label ? `${block.label} ${block.value || ''}` : '')
-				return line ? <div key={i}>{line}</div> : null
-			})}
-			{doc.lastAction ? <div>Noted: {doc.lastAction}</div> : null}
+		<button type="button" className="shrink-0 px-3 py-1 text-left text-xs text-void-fg-3 border-b border-void-border-3" onClick={() => { void commandService.executeCommand('opencursor.openCanvas') }}>
+			Open Canvas · {title}
+		</button>
+	)
+}
+
+const IndexBar = () => {
+	const accessor = useAccessor()
+	const patches = accessor.get('IOpenCursorPatchService')
+	const workspace = accessor.get('IWorkspaceContextService')
+	const [label, setLabel] = useState('Index')
+	const [semantic, setSemantic] = useState('Semantic')
+
+	const folderPath = () => workspace.getWorkspace().folders[0]?.uri.fsPath
+
+	const load = async (rebuild: boolean) => {
+		const root = folderPath()
+		if (!root) {
+			setLabel('')
+			return
+		}
+		const res = await patches.patch({ workspaceRoot: root, op: rebuild ? 'index' : 'index-status' })
+		if (!res.ok) {
+			setLabel('Index unavailable')
+			return
+		}
+		setLabel(res.files ? `Index ${res.files}` : 'No index')
+	}
+
+	const loadSemantic = async (rebuild: boolean) => {
+		const root = folderPath()
+		if (!root) {
+			setSemantic('')
+			return
+		}
+		const res = await patches.patch({ workspaceRoot: root, op: rebuild ? 'embed' : 'embed-status' })
+		if (!res.ok) {
+			setSemantic('Semantic unavailable')
+			return
+		}
+		setSemantic(res.chunks ? `Semantic ${res.chunks}` : 'No semantic index')
+	}
+
+	useEffect(() => {
+		void load(false)
+		void loadSemantic(false)
+	}, [])
+
+	if (!label && !semantic) return null
+	return (
+		<div className="flex shrink-0 border-b border-void-border-3">
+			<button type="button" className="px-3 py-1 text-left text-xs text-void-fg-3" onClick={() => { void load(true) }}>
+				{label} · Rebuild
+			</button>
+			<button type="button" className="px-3 py-1 text-left text-xs text-void-fg-3" onClick={() => { void loadSemantic(true) }}>
+				{semantic} · Rebuild
+			</button>
 		</div>
 	)
 }
@@ -84,7 +121,6 @@ export const SidebarChat = () => {
 	const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
 	const textAreaFnsRef = useRef<TextAreaFns | null>(null)
 
-	const { t } = useTranslation()
 	const accessor = useAccessor()
 	const commandService = accessor.get('ICommandService')
 	const chatThreadsService = accessor.get('IChatThreadService')
@@ -114,7 +150,8 @@ export const SidebarChat = () => {
 	const [instructionsAreEmpty, setInstructionsAreEmpty] = useState(!initVal)
 
 	// Image attachments management
-	const [showHistory, setShowHistory] = useState(false);
+	const [showHistory, setShowHistory] = useState(isChatHistoryOpen);
+	useEffect(() => onDidChangeChatHistory(setShowHistory), []);
 	const {
 		attachments: imageAttachments,
 		addImages: addImagesRaw,
@@ -324,10 +361,6 @@ export const SidebarChat = () => {
 		contextPct,
 	};
 
-	const landingPageInput = (
-		<ComposerInputSection variant="landing" {...composerInputProps} />
-	);
-
 	const threadPageInput = (
 		<ComposerInputSection
 			variant="thread"
@@ -336,31 +369,6 @@ export const SidebarChat = () => {
 		/>
 	);
 
-	const isLandingPage = previousMessages.length === 0
-
-	const landingPageContent = <LandingPage
-		sidebarRef={sidebarRef}
-		inputSection={landingPageInput}
-		showPreviousThreads={Object.keys(chatThreadsState.allThreads).length > 1}
-		suggestionsLabel={t('chat.suggestions')}
-		previousThreadsLabel={t('chat.previousThreads')}
-		onSubmitPrompt={onSubmit}
-	/>
-
-
-	// const threadPageContent = <div>
-	// 	{/* Thread content */}
-	// 	<div className='flex flex-col overflow-hidden'>
-	// 		<div className={`overflow-hidden ${previousMessages.length === 0 ? 'h-0 max-h-0 pb-2' : ''}`}>
-	// 			<ErrorBoundary>
-	// 				{messagesHTML}
-	// 			</ErrorBoundary>
-	// 		</div>
-	// 		<ErrorBoundary>
-	// 			{inputForm}
-	// 		</ErrorBoundary>
-	// 	</div>
-	// </div>
 	const threadPageContent = <div
 		ref={sidebarRef}
 		className='w-full h-full flex flex-col overflow-hidden'
@@ -378,10 +386,8 @@ export const SidebarChat = () => {
 	return (
 		<div key={threadId} className="w-full h-full flex flex-col overflow-hidden">
 			<ComposerTabs />
-			<ThreadHeader
-				showHistory={showHistory}
-				onToggleHistory={() => setShowHistory(v => !v)}
-			/>
+			<IndexBar />
+			<CanvasLink refreshKey={`${previousMessages.length}:${isRunning || ''}`} />
 			{showHistory && (
 				<ErrorBoundary>
 					<div className="shrink-0 max-h-[40%] overflow-y-auto px-3 py-2 border-b border-void-border-3 bg-void-bg-2/50">
@@ -390,9 +396,8 @@ export const SidebarChat = () => {
 				</ErrorBoundary>
 			)}
 			<div className="flex-1 min-h-0 overflow-hidden">
-				{isLandingPage ? landingPageContent : threadPageContent}
+				{threadPageContent}
 			</div>
-			<OpenCursorCanvas refreshKey={`${previousMessages.length}:${isRunning || ''}`} />
 		</div>
 	)
 }

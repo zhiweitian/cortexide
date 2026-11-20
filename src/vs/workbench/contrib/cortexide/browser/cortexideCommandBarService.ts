@@ -27,6 +27,7 @@ import { KeyMod } from '../../../../editor/common/services/editorBaseApi.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { ICortexideModelService } from '../common/cortexideModelService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 type VoidCommandBarModule = typeof import('./react/out/editor-widgets/index.js');
 let mountVoidCommandBarPromise: Promise<VoidCommandBarModule['mountVoidCommandBar']> | undefined;
@@ -590,7 +591,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_ACCEPT_DIFF_ACTION_ID,
 			f1: true,
-			title: localize2('voidAcceptDiffAction', 'Void: Accept Diff'),
+			title: localize2('voidAcceptDiffAction', 'OpenCursor: Accept Diff'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter },
@@ -600,6 +601,9 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		if (await accessor.get(ICommandService).executeCommand('opencursor.applyEditorPatch', 'accept', false)) {
+			return;
+		}
 		const editCodeService = accessor.get(IEditCodeService);
 		const commandBarService = accessor.get(ICortexideCommandBarService);
 		const metricsService = accessor.get(IMetricsService);
@@ -633,7 +637,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_REJECT_DIFF_ACTION_ID,
 			f1: true,
-			title: localize2('voidRejectDiffAction', 'Void: Reject Diff'),
+			title: localize2('voidRejectDiffAction', 'OpenCursor: Reject Diff'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Backspace,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Backspace },
@@ -643,6 +647,9 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		if (await accessor.get(ICommandService).executeCommand('opencursor.applyEditorPatch', 'reject', false)) {
+			return;
+		}
 		const editCodeService = accessor.get(IEditCodeService);
 		const commandBarService = accessor.get(ICortexideCommandBarService);
 		const metricsService = accessor.get(IMetricsService);
@@ -674,7 +681,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_GOTO_NEXT_DIFF_ACTION_ID,
 			f1: true,
-			title: localize2('voidGoToNextDiffAction', 'Void: Go to Next Diff'),
+			title: localize2('voidGoToNextDiffAction', 'OpenCursor: Go to Next Diff'),
 			keybinding: [
 				{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
@@ -708,7 +715,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_GOTO_PREV_DIFF_ACTION_ID,
 			f1: true,
-			title: localize2('voidGoToPrevDiffAction', 'Void: Go to Previous Diff'),
+			title: localize2('voidGoToPrevDiffAction', 'OpenCursor: Go to Previous Diff'),
 			keybinding: [
 				{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
@@ -742,7 +749,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_GOTO_NEXT_URI_ACTION_ID,
 			f1: true,
-			title: localize2('voidGoToNextUriAction', 'Void: Go to Next File with Diffs'),
+			title: localize2('voidGoToNextUriAction', 'OpenCursor: Go to Next File with Diffs'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.RightArrow },
@@ -769,7 +776,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_GOTO_PREV_URI_ACTION_ID,
 			f1: true,
-			title: localize2('voidGoToPrevUriAction', 'Void: Go to Previous File with Diffs'),
+			title: localize2('voidGoToPrevUriAction', 'OpenCursor: Go to Previous File with Diffs'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.LeftArrow },
@@ -796,7 +803,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_ACCEPT_FILE_ACTION_ID,
 			f1: true,
-			title: localize2('voidAcceptFileAction', 'Void: Accept All Diffs in Current File'),
+			title: localize2('voidAcceptFileAction', 'OpenCursor: Accept All Diffs in Current File'),
 			keybinding: {
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.ExternalExtension,
@@ -805,6 +812,9 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		if (await accessor.get(ICommandService).executeCommand('opencursor.applyEditorPatch', 'accept', true)) {
+			return;
+		}
 		const commandBarService = accessor.get(ICortexideCommandBarService);
 		const editCodeService = accessor.get(IEditCodeService);
 		const metricsService = accessor.get(IMetricsService);
@@ -827,7 +837,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_REJECT_FILE_ACTION_ID,
 			f1: true,
-			title: localize2('voidRejectFileAction', 'Void: Reject All Diffs in Current File'),
+			title: localize2('voidRejectFileAction', 'OpenCursor: Reject All Diffs in Current File'),
 			keybinding: {
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Backspace,
 				weight: KeybindingWeight.ExternalExtension,
@@ -836,6 +846,9 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		if (await accessor.get(ICommandService).executeCommand('opencursor.applyEditorPatch', 'reject', true)) {
+			return;
+		}
 		const commandBarService = accessor.get(ICortexideCommandBarService);
 		const editCodeService = accessor.get(IEditCodeService);
 		const metricsService = accessor.get(IMetricsService);
@@ -858,7 +871,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_ACCEPT_ALL_DIFFS_ACTION_ID,
 			f1: true,
-			title: localize2('voidAcceptAllDiffsAction', 'Void: Accept All Diffs in All Files'),
+			title: localize2('voidAcceptAllDiffsAction', 'OpenCursor: Accept All Diffs in All Files'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.ExternalExtension,
@@ -883,7 +896,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_REJECT_ALL_DIFFS_ACTION_ID,
 			f1: true,
-			title: localize2('voidRejectAllDiffsAction', 'Void: Reject All Diffs in All Files'),
+			title: localize2('voidRejectAllDiffsAction', 'OpenCursor: Reject All Diffs in All Files'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
 				weight: KeybindingWeight.ExternalExtension,

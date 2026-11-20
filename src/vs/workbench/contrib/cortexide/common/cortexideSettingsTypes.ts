@@ -489,6 +489,14 @@ export const isFeatureNameDisabled = (featureName: FeatureName, settingsState: C
 
 export type ChatMode = 'agent' | 'gather' | 'normal' | 'plan'
 
+/** One user API key and the model names it can call. */
+export type OpenCursorApiEntry = {
+	id: string;
+	baseUrl: string;
+	apiKey: string;
+	models: string[];
+}
+
 
 export type GlobalSettings = {
 	autoRefreshModels: boolean;
@@ -522,8 +530,16 @@ export type GlobalSettings = {
 	enableLifecycleHooks?: boolean; // Run user-configured .cortexide/hooks.json commands at agent lifecycle events (pre-tool/post-tool/agent-stop) (default: false)
 	/** Chat always uses agent-core. Kept so older saved settings still load. */
 	useOpenCursorAgentCore?: boolean;
-	/** Model name sent to the configured API. Chat does not pick among providers. */
+	/** Model name sent to the selected API. */
 	openCursorModel?: string;
+	/** Optional completion endpoint. Empty means Tab stays on the local prefix. */
+	openCursorCompleteUrl?: string;
+	/** Model name sent to the completion endpoint. */
+	openCursorCompleteModel?: string;
+	/** Which saved API the selected model belongs to. */
+	openCursorApiId?: string;
+	/** API keys the user added. One key can list several model names. */
+	openCursorApis?: OpenCursorApiEntry[];
 	/** When OpenCursor agent-core is on: connect MCP servers from data/mcp.json (default true). */
 	openCursorUseMcp?: boolean;
 	// Audit log settings
@@ -600,6 +616,10 @@ export const defaultGlobalSettings: GlobalSettings = {
 	enableLifecycleHooks: false, // Opt-in: run .cortexide/hooks.json commands at agent lifecycle events
 	useOpenCursorAgentCore: true,
 	openCursorModel: 'deepseek-flash',
+	openCursorCompleteUrl: '',
+	openCursorCompleteModel: '',
+	openCursorApiId: '',
+	openCursorApis: [],
 	openCursorUseMcp: true,
 	enableYOLOMode: false, // YOLO mode disabled by default (requires explicit opt-in)
 	yoloRiskThreshold: 0.2, // Auto-apply edits with risk < 0.2

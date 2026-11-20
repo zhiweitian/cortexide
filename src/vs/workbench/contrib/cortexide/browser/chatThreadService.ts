@@ -79,7 +79,7 @@ import { localize } from '../../../../nls.js';
 import { IAuditLogService } from '../common/auditLogService.js';
 import { IOpenCursorAgentService } from '../common/opencursorAgentService.js';
 import { IOpenCursorPatchService } from '../common/opencursorPatchService.js';
-import { openOpenCursorPatchDiffWithServices, patchFromRun, reloadOpenCursorPatchedFile } from './opencursorPatchHelpers.js';
+import { openOpenCursorPatchDiffWithServices, patchFromRun, reloadOpenCursorPatchedFile, tryShowOpenCursorInlineDiff } from './opencursorPatchHelpers.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 
@@ -5141,13 +5141,42 @@ We only need to do it for files that were edited since `from`, ie files between 
 	async toggleOpenCursorCheckpoint(runId: string): Promise<void> {
 		const folder = this._workspaceContextService.getWorkspace().folders[0]
 		if (!folder) return
+		if (Object.values(this.streamState).some(state => state?.isRunning)) return
 		const detail = await this._openCursorPatchService.patch({ workspaceRoot: folder.uri.fsPath, op: 'get', runId })
-		const restored = Boolean((detail.run as { restored?: boolean } | undefined)?.restored)
+		const run = detail.run as { restored?: boolean; patches?: { id: string; status: string }[] } | undefined
+		const restored = Boolean(run?.restored)
+		const accepted = (run?.patches ?? []).filter(patch => patch.status === 'accepted')
+		if (!restored && !accepted.length) {
+			// allow-any-unicode-next-line
+			this._notificationService.info('先接受补丁，才能回到这一轮改动之前。')
+			return
+		}
 		const result = await this._openCursorPatchService.patch({
 			workspaceRoot: folder.uri.fsPath,
 			op: restored ? 'reapply' : 'restore',
 			runId,
 		})
+		if (!result.ok) {
+			this._notificationService.warn(result.error || 'Checkpoint failed')
+			return
+		}
+		const nextRestored = !restored
+		for (const [threadId, thread] of Object.entries(this.state.allThreads)) {
+			if (!thread) continue
+			for (let idx = 0; idx < thread.messages.length; idx++) {
+				const msg = thread.messages[idx]
+				if (msg.role === 'checkpoint' && msg.openCursorRunId === runId) {
+					this._editMessageInThread(threadId, idx, { ...msg, openCursorRestored: nextRestored })
+				}
+			}
+		}
+		if (nextRestored) {
+			for (const patch of run?.patches ?? []) {
+				if (patch.status === 'pending') {
+					this.syncOpenCursorPatchStatus(runId, patch.id, 'rejected')
+				}
+			}
+		}
 		for (const rel of result.paths ?? []) {
 			await reloadOpenCursorPatchedFile(folder.uri, rel, this._fileService, this._modelService)
 		}
@@ -5236,12 +5265,20 @@ We only need to do it for files that were edited since `from`, ie files between 
 		if (!p) {
 			return 'Patch not found'
 		}
-		await openOpenCursorPatchDiffWithServices(p.path, p.oldContent ?? '', p.newContent ?? '', {
-			untitled: this._untitledTextEditorService,
+		const shown = await tryShowOpenCursorInlineDiff(folder.uri, p.path, p.oldContent ?? '', p.newContent ?? '', {
+			fileService: this._fileService,
+			models: this._cortexideModelService,
+			editCode: this._editCodeService,
 			commands: this._commandService,
-			langService: this._languageService,
-			workspaceFolder: folder.uri,
 		})
+		if (!shown) {
+			await openOpenCursorPatchDiffWithServices(p.path, p.oldContent ?? '', p.newContent ?? '', {
+				untitled: this._untitledTextEditorService,
+				commands: this._commandService,
+				langService: this._languageService,
+				workspaceFolder: folder.uri,
+			})
+		}
 		return undefined
 	}
 
@@ -5354,6 +5391,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 				deepseekApiKey: deepseek?.apiKey,
 				deepseekEndpoint: deepseek?.endpoint,
 				deepseekModel: gs.openCursorModel,
+				chatMode: gs.chatMode,
 			})
 			if (!result.ok) {
 				if (userAborted || result.error === 'aborted') {
@@ -5412,6 +5450,7 @@ We only need to do it for files that were edited since `from`, ie files between 
 						role: 'checkpoint',
 						type: 'tool_edit',
 						openCursorRunId: result.runId,
+						openCursorRestored: false,
 						voidFileSnapshotOfURI: {},
 						userModifications: { voidFileSnapshotOfURI: {} },
 					})

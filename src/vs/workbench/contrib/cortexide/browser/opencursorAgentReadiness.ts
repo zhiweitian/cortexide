@@ -15,6 +15,7 @@ export type OpenCursorCliPaths = {
 export async function resolveOpenCursorCliPaths(
 	workspaceRoot: string,
 	fileService: IFileService,
+	appRoot?: string,
 ): Promise<OpenCursorCliPaths | undefined> {
 	let dir = workspaceRoot;
 	for (let i = 0; i < 8; i++) {
@@ -28,6 +29,13 @@ export async function resolveOpenCursorCliPaths(
 			break;
 		}
 		dir = parent;
+	}
+	if (appRoot) {
+		const agentCli = URI.file(join(appRoot, 'opencursor', 'opencursor-agent.cjs'));
+		const patchesCli = URI.file(join(appRoot, 'opencursor', 'opencursor-patches.mjs'));
+		if ((await fileService.exists(agentCli)) && (await fileService.exists(patchesCli))) {
+			return { agentCli, patchesCli, monorepoRoot: appRoot };
+		}
 	}
 	return undefined;
 }

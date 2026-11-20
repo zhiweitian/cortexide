@@ -9,7 +9,8 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { ICortexideSettingsService } from '../common/cortexideSettingsService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { resolveOpenCursorCliPaths, workspaceHasOpenCursorConfig } from './opencursorAgentReadiness.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { resolveOpenCursorCliPaths } from './opencursorAgentReadiness.js';
 
 class OpenCursorStatusBarContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.opencursorStatusBar';
@@ -21,6 +22,7 @@ class OpenCursorStatusBarContribution extends Disposable implements IWorkbenchCo
 		@ICortexideSettingsService private readonly settingsService: ICortexideSettingsService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this._register(this.settingsService.onDidChangeState(() => this.refresh()));
@@ -56,8 +58,9 @@ class OpenCursorStatusBarContribution extends Disposable implements IWorkbenchCo
 		}
 
 		const root = folder.uri.fsPath;
-		const clis = await resolveOpenCursorCliPaths(root, this.fileService);
-		const hasConfig = await workspaceHasOpenCursorConfig(root, this.fileService);
+		const clis = await resolveOpenCursorCliPaths(root, this.fileService, this.environmentService.appRoot);
+		const apis = this.settingsService.state.globalSettings.openCursorApis ?? [];
+		const hasKey = apis.some(api => !!api.apiKey?.trim());
 
 		if (!clis) {
 			return {
@@ -66,15 +69,15 @@ class OpenCursorStatusBarContribution extends Disposable implements IWorkbenchCo
 				ariaLabel: 'OpenCursor agent CLI missing',
 				tooltip: localize(
 					'opencursor.cliMissing',
-					'OpenCursor Chat is on, but dist/opencursor-agent.cjs was not found.\nFrom the monorepo root run: npm run build:agent-cli\n(open workspace or a parent folder that contains dist/)',
+					'OpenCursor Chat is on, but the agent program was not found.\nFrom the monorepo root run: npm run build:agent-cli',
 				),
 			};
 		}
 
-		const configHint = hasConfig
-			? localize('opencursor.configOk', 'data/config.json found in workspace.')
-			: localize('opencursor.configMissing', 'No data/config.json — set DeepSeek key in Settings or add config under workspace/data/.');
-		const icon = hasConfig ? '$(pass)' : '$(info)';
+		const keyHint = hasKey
+			? localize('opencursor.keyOk', 'API key is set in Settings.')
+			: localize('opencursor.keyMissing', 'Add an API key in OpenCursor Settings.');
+		const icon = hasKey ? '$(pass)' : '$(info)';
 		return {
 			name: 'OpenCursor',
 			text: `${icon} OpenCursor`,
@@ -83,7 +86,7 @@ class OpenCursorStatusBarContribution extends Disposable implements IWorkbenchCo
 				'opencursor.cliReady',
 				'Chat engine: OpenCursor agent-core\nCLI: {0}\n{1}',
 				clis.monorepoRoot,
-				configHint,
+				keyHint,
 			),
 		};
 	}

@@ -9,6 +9,7 @@ import { useAccessor, useSettingsState } from '../../util/services.js';
 import { VoidCustomDropdownBox, VoidSlider, VoidSwitch } from '../../util/inputs.js';
 import { ModelDropdown } from '../../settings/ModelDropdown.js';
 import { ChatMode, FeatureName, isValidProviderModelSelection } from '../../../../../../../workbench/contrib/cortexide/common/cortexideSettingsTypes.js';
+import { openCursorHost, openCursorModelChoices } from '../../../../../../../workbench/contrib/cortexide/common/openCursorApis.js';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
 import { StagingSelectionItem } from '../../../../common/chatThreadServiceTypes.js';
 import { IconX, IconArrowUp, IconSquare } from '../shared/icons.js';
@@ -201,6 +202,34 @@ interface CortexideChatAreaProps {
 	pdfAttachments?: React.ReactNode;
 
 	featureName: FeatureName;
+}
+
+const OpenCursorModelSelect = () => {
+	const accessor = useAccessor()
+	const settingsService = accessor.get('ICortexideSettingsService')
+	const settingsState = useSettingsState()
+	const apis = settingsState.globalSettings.openCursorApis ?? []
+	const choices = openCursorModelChoices(apis)
+	const severalKeys = new Set(choices.map(choice => choice.id)).size > 1
+	const value = `${settingsState.globalSettings.openCursorApiId || ''}\t${settingsState.globalSettings.openCursorModel || ''}`
+	if (choices.length === 0) {
+		return <span className='text-xs text-void-fg-3'>Add a model in Settings</span>
+	}
+	return <select
+		className='max-w-[240px] bg-transparent text-xs text-void-fg-2'
+		aria-label='Model'
+		value={choices.some(choice => `${choice.id}\t${choice.model}` === value) ? value : `${choices[0].id}\t${choices[0].model}`}
+		onChange={e => {
+			const [id, model] = e.target.value.split('\t')
+			void settingsService.saveOpenCursorApis(apis, id, model)
+		}}
+	>
+		{choices.map(choice => (
+			<option key={`${choice.id}\t${choice.model}`} value={`${choice.id}\t${choice.model}`}>
+				{severalKeys ? `${choice.model} · ${openCursorHost(choice.baseUrl)}` : choice.model}
+			</option>
+		))}
+	</select>
 }
 
 export const VoidChatArea: React.FC<CortexideChatAreaProps> = ({
@@ -503,7 +532,8 @@ export const VoidChatArea: React.FC<CortexideChatAreaProps> = ({
 			<div className='cortex-composer-toolbar flex flex-row justify-between items-center gap-2'>
 				{showModelDropdown && (
 					<div className='flex items-center flex-wrap gap-x-2 gap-y-1 text-nowrap flex-1 min-w-0'>
-						<span className='text-xs text-void-fg-3'>{settingsState.globalSettings.openCursorModel || 'deepseek-flash'}</span>
+						<ChatModeDropdown className='text-xs' />
+						<OpenCursorModelSelect />
 					</div>
 				)}
 

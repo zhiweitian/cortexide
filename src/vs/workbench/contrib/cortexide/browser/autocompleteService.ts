@@ -18,6 +18,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IOpenCursorPatchService } from '../common/opencursorPatchService.js';
+import { ICortexideSettingsService } from '../common/cortexideSettingsService.js';
 
 
 
@@ -210,10 +211,13 @@ export class AutocompleteService extends Disposable {
 				const full = model.getValue()
 				const start = Math.max(0, offset - 20_000)
 				const text = full.slice(start, offset + 4_000)
+				const gs = this._settingsService.state.globalSettings
 				const hit = await this._openCursorPatchService.complete({
 					workspaceRoot: folder.uri.fsPath,
 					text,
 					cursor: offset - start,
+					url: gs.openCursorCompleteUrl,
+					model: gs.openCursorCompleteModel,
 				})
 				if (hit.ok && hit.completion) {
 					return [{
@@ -236,6 +240,7 @@ export class AutocompleteService extends Disposable {
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IOpenCursorPatchService private readonly _openCursorPatchService: IOpenCursorPatchService,
+		@ICortexideSettingsService private readonly _settingsService: ICortexideSettingsService,
 	) {
 		super()
 

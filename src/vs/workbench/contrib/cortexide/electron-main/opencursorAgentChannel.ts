@@ -23,7 +23,7 @@ const AGENT_REL = join('dist', 'opencursor-agent.cjs');
 const PATCHES_REL = join('dist', 'opencursor-patches.mjs');
 const COMPLETE_REL = join('dist', 'opencursor-complete.mjs');
 
-function resolveDistScript(workspaceRoot: string, rel: string, envOverride?: string): string | null {
+function resolveDistScript(workspaceRoot: string, rel: string, envOverride: string | undefined, appRoot: string | undefined): string | null {
 	if (envOverride && existsSync(envOverride)) {
 		return envOverride;
 	}
@@ -39,25 +39,33 @@ function resolveDistScript(workspaceRoot: string, rel: string, envOverride?: str
 		}
 		dir = parent;
 	}
+	if (appRoot) {
+		const bundled = join(appRoot, 'opencursor', rel.split(/[/\\]/).pop() || rel);
+		if (existsSync(bundled)) {
+			return bundled;
+		}
+	}
 	return null;
 }
 
-function resolveCliPath(workspaceRoot: string, explicit?: string): string | null {
+function resolveCliPath(workspaceRoot: string, appRoot: string | undefined, explicit?: string): string | null {
 	if (explicit && existsSync(explicit)) {
 		return explicit;
 	}
-	return resolveDistScript(workspaceRoot, AGENT_REL, process.env.OPENCURSOR_AGENT_CLI);
+	return resolveDistScript(workspaceRoot, AGENT_REL, process.env.OPENCURSOR_AGENT_CLI, appRoot);
 }
 
-function resolvePatchesCliPath(workspaceRoot: string): string | null {
-	return resolveDistScript(workspaceRoot, PATCHES_REL, process.env.OPENCURSOR_PATCHES_CLI);
+function resolvePatchesCliPath(workspaceRoot: string, appRoot: string | undefined): string | null {
+	return resolveDistScript(workspaceRoot, PATCHES_REL, process.env.OPENCURSOR_PATCHES_CLI, appRoot);
 }
 
-function resolveCompleteCliPath(workspaceRoot: string): string | null {
-	return resolveDistScript(workspaceRoot, COMPLETE_REL, process.env.OPENCURSOR_COMPLETE_CLI);
+function resolveCompleteCliPath(workspaceRoot: string, appRoot: string | undefined): string | null {
+	return resolveDistScript(workspaceRoot, COMPLETE_REL, process.env.OPENCURSOR_COMPLETE_CLI, appRoot);
 }
 
 export class OpenCursorAgentChannel implements IServerChannel {
+
+	constructor(private readonly appRoot?: string) { }
 
 	private readonly _onStep = new Emitter<OpenCursorAgentProgressEvent>();
 	private _agentChild: ChildProcess | undefined;
@@ -117,7 +125,7 @@ export class OpenCursorAgentChannel implements IServerChannel {
 			return this._completeChild;
 		}
 		this._stopCompleteChild();
-		const cliPath = resolveCompleteCliPath(workspaceRoot);
+		const cliPath = resolveCompleteCliPath(workspaceRoot, this.appRoot);
 		if (!cliPath) {
 			return null;
 		}
@@ -182,7 +190,7 @@ export class OpenCursorAgentChannel implements IServerChannel {
 					resolve({ ok: false, error: String(error) });
 				}
 			});
-			child.stdin!.write(JSON.stringify({ id, workspace: workspaceRoot, text: req.text, cursor: req.cursor }) + '\n');
+			child.stdin!.write(JSON.stringify({ id, workspace: workspaceRoot, text: req.text, cursor: req.cursor, url: req.url, model: req.model }) + '\n');
 		});
 	}
 
@@ -219,7 +227,7 @@ export class OpenCursorAgentChannel implements IServerChannel {
 		if (!workspaceRoot || !req.op) {
 			return { ok: false, error: 'workspaceRoot and op required' };
 		}
-		const cliPath = resolvePatchesCliPath(workspaceRoot);
+		const cliPath = resolvePatchesCliPath(workspaceRoot, this.appRoot);
 		if (!cliPath) {
 			return { ok: false, error: `patches CLI not found (npm run build:agent-cli). Expected ${PATCHES_REL}` };
 		}
@@ -229,6 +237,8 @@ export class OpenCursorAgentChannel implements IServerChannel {
 			runId: req.runId,
 			patchId: req.patchId,
 			action: req.action,
+			path: req.path,
+			enabled: req.enabled,
 		});
 		if (!spawned.ok) {
 			return { ok: false, error: spawned.error };
@@ -242,8 +252,13 @@ export class OpenCursorAgentChannel implements IServerChannel {
 			at?: 'before' | 'after';
 			canvas?: unknown;
 			text?: string;
+			files?: number;
+			builtAt?: string;
+			chunks?: number;
+			embedder?: string;
+			off?: string[];
 		};
-		return { ok: true, runs: data.runs, patch: data.patch, run: data.run, restored: data.restored, paths: data.paths, at: data.at, canvas: data.canvas, text: data.text };
+		return { ok: true, runs: data.runs, patch: data.patch, run: data.run, restored: data.restored, paths: data.paths, at: data.at, canvas: data.canvas, text: data.text, files: data.files, builtAt: data.builtAt, chunks: data.chunks, embedder: data.embedder, off: data.off };
 	}
 
 	private _emitProgressLines(buffer: string): string {
@@ -288,7 +303,7 @@ export class OpenCursorAgentChannel implements IServerChannel {
 				return;
 			}
 
-			const cliPath = resolveCliPath(workspaceRoot, req.cliPath);
+			const cliPath = resolveCliPath(workspaceRoot, this.appRoot, req.cliPath);
 			if (!cliPath) {
 				resolve({
 					ok: false,
@@ -305,6 +320,7 @@ export class OpenCursorAgentChannel implements IServerChannel {
 				deepseekApiKey: req.deepseekApiKey,
 				deepseekEndpoint: req.deepseekEndpoint,
 				deepseekModel: req.deepseekModel,
+				chatMode: req.chatMode,
 			});
 
 			const timeoutMs = Math.min(Math.max(req.timeoutMs ?? 300_000, 5_000), MAX_TIMEOUT_MS);

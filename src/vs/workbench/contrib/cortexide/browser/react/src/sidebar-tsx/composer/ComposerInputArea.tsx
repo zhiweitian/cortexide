@@ -6,7 +6,6 @@
 import React, { KeyboardEvent, RefObject } from 'react';
 import { VoidChatArea } from './VoidChatArea.js';
 import { VoidInputBox2, TextAreaFns } from '../../util/inputs.js';
-import { StagingContextChips } from './StagingContextChips.js';
 import { ImageAttachmentList } from '../../util/ImageAttachmentList.js';
 import { PDFAttachmentList } from '../../util/PDFAttachmentList.js';
 import { StagingSelectionItem, ChatImageAttachment, ChatPDFAttachment } from '../../../../common/chatThreadServiceTypes.js';
@@ -136,10 +135,6 @@ export const ComposerInputArea = ({
 			ref={textAreaRef}
 			fnsRef={textAreaFnsRef}
 			multiline={true}
-		/>
-		<StagingContextChips
-			selections={selections}
-			onRemoveAt={(idx) => setSelections(selections.filter((_, i) => i !== idx))}
 		/>
 	</VoidChatArea>
 );

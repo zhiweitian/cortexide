@@ -61,13 +61,16 @@ const Checkpoint = ({ message, threadId, messageIdx, isCheckpointGhost, threadIs
 					jumpToUserModified: messageIdx === threadMessagesLength - 1
 				})
 			}}
-			{...isDisabled ? {
+			{...isDisabled && !message.openCursorRunId ? {
 				'data-tooltip-id': 'cortex-tooltip',
 				'data-tooltip-content': `Disabled ${isRunning ? 'when running' : 'because another thread is running'}`,
 				'data-tooltip-place': 'top',
 			} : {}}
 		>
-			Checkpoint
+			{message.openCursorRunId
+				// allow-any-unicode-next-line
+				? (message.openCursorRestored ? '回到改后' : '回到改前')
+				: 'Checkpoint'}
 		</div>
 	</div>
 }
@@ -260,44 +263,6 @@ const PlanComponent = React.memo(({ message, isCheckpointGhost, threadId, messag
 						{!isCollapsed && (
 							<div className="flex items-center gap-3 flex-shrink-0">
 								<span className="text-void-fg-3 text-xs" aria-live="polite">{progressText}</span>
-                                {approvalState === 'pending' && isIdleLike && (
-									<div className="flex gap-2">
-										<button
-											title="Reject plan"
-									aria-label="Reject plan"
-											onClick={handleReject}
-											className="px-3 py-1.5 text-xs rounded bg-[var(--cortex-danger)]/10 text-[var(--cortex-danger)] border border-[var(--cortex-danger)]/20 hover:bg-[var(--cortex-danger)]/20 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--cortex-danger)]/40"
-										>
-											Reject
-										</button>
-										<button
-											title="Approve and execute"
-									aria-label="Approve and execute plan"
-											onClick={handleApprove}
-											className="px-3 py-1.5 text-xs rounded bg-[var(--cortex-success)]/10 text-[var(--cortex-success)] border border-[var(--cortex-success)]/20 hover:bg-[var(--cortex-success)]/20 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--cortex-success)]/40"
-										>
-											Approve & Execute
-										</button>
-									</div>
-								)}
-							{approvalState === 'executing' && isBusy && (
-								<button
-									aria-label="Pause plan execution"
-										onClick={() => chatThreadService.pauseAgentExecution({ threadId })}
-										className="px-3 py-1.5 text-xs rounded bg-orange-500/10 text-orange-400 border border-orange-500/20 hover:bg-orange-500/20 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500/40"
-									>
-										Pause
-									</button>
-								)}
-							{hasPausedSteps && !isBusy && (
-								<button
-									aria-label="Resume plan execution"
-										onClick={() => chatThreadService.resumeAgentExecution({ threadId })}
-										className="px-3 py-1.5 text-xs rounded bg-[var(--cortex-success)]/10 text-[var(--cortex-success)] border border-[var(--cortex-success)]/20 hover:bg-[var(--cortex-success)]/20 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--cortex-success)]/40"
-									>
-										Resume
-									</button>
-								)}
 							</div>
 						)}
 					</div>
@@ -348,33 +313,6 @@ const PlanComponent = React.memo(({ message, isCheckpointGhost, threadId, messag
 													>
 														{isDisabled ? 'Enable' : 'Disable'}
 													</button>
-												)}
-									{approvalState === 'executing' && status === 'failed' && (
-													<>
-											<button
-												aria-label={`Retry step ${step.stepNumber}`}
-															onClick={() => chatThreadService.retryStep({ threadId, messageIdx, stepNumber: step.stepNumber })}
-															className="px-2 py-0.5 text-xs rounded bg-[var(--cortex-success)]/10 text-[var(--cortex-success)] hover:bg-[var(--cortex-success)]/20 border border-[var(--cortex-success)]/20 transition-colors"
-														>
-															Retry
-														</button>
-											<button
-												aria-label={`Skip step ${step.stepNumber}`}
-															onClick={() => chatThreadService.skipStep({ threadId, messageIdx, stepNumber: step.stepNumber })}
-															className="px-2 py-0.5 text-xs rounded bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 border border-gray-500/20 transition-colors"
-														>
-															Skip
-														</button>
-														{step.checkpointIdx !== undefined && step.checkpointIdx !== null && (
-								<button
-									aria-label={`Rollback step ${step.stepNumber}`}
-									onClick={() => { if (confirm('Rollback to the checkpoint before this step?')) chatThreadService.rollbackToStep({ threadId, messageIdx, stepNumber: step.stepNumber }) }}
-																className="px-2 py-0.5 text-xs rounded bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/20 transition-colors"
-															>
-																Rollback
-															</button>
-														)}
-													</>
 												)}
 											</div>
 										)}

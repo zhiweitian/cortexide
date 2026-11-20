@@ -12,6 +12,9 @@ import { IUntitledTextEditorService } from '../../../services/untitled/common/un
 import { IOpenCursorPatchService } from '../common/opencursorPatchService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { EndOfLinePreference } from '../../../../editor/common/model.js';
+import { ICortexideModelService } from '../common/cortexideModelService.js';
+import { IEditCodeService } from './editCodeServiceInterface.js';
 
 export type OpenCursorRunPatch = {
 	id: string;
@@ -93,9 +96,40 @@ export async function reloadOpenCursorPatchedFile(
 	}
 	const disk = await fileService.readFile(uri);
 	const text = disk.value.toString();
-	if (model) {
+	if (model && model.getValue() !== text) {
 		model.setValue(text);
 	}
+}
+
+function sameText(a: string, b: string): boolean {
+	return a.replace(/\r\n/g, '\n') === b.replace(/\r\n/g, '\n');
+}
+
+/** Show the pending patch as red/green in the real file. Returns false when the file is new or the editor text is not the patch original. */
+export async function tryShowOpenCursorInlineDiff(
+	folder: URI,
+	relPath: string,
+	oldContent: string,
+	newContent: string,
+	services: {
+		fileService: IFileService;
+		models: ICortexideModelService;
+		editCode: IEditCodeService;
+		commands: ICommandService;
+	},
+): Promise<boolean> {
+	const uri = URI.joinPath(folder, relPath);
+	if (!(await services.fileService.exists(uri))) {
+		return false;
+	}
+	await services.models.initializeModel(uri);
+	const { model } = services.models.getModel(uri);
+	if (!model || !sameText(model.getValue(EndOfLinePreference.LF), oldContent)) {
+		return false;
+	}
+	await services.commands.executeCommand('vscode.open', uri);
+	services.editCode.instantlyRewriteFile({ uri, newContent });
+	return true;
 }
 
 export async function previewOpenCursorPatch(
@@ -116,6 +150,14 @@ export async function previewOpenCursorPatch(
 	if (!p) {
 		return 'Patch not found';
 	}
-	await openOpenCursorPatchDiff(accessor, p.path, p.oldContent ?? '', p.newContent ?? '');
+	const shown = await tryShowOpenCursorInlineDiff(folder.uri, p.path, p.oldContent ?? '', p.newContent ?? '', {
+		fileService: accessor.get(IFileService),
+		models: accessor.get(ICortexideModelService),
+		editCode: accessor.get(IEditCodeService),
+		commands: accessor.get(ICommandService),
+	});
+	if (!shown) {
+		await openOpenCursorPatchDiff(accessor, p.path, p.oldContent ?? '', p.newContent ?? '');
+	}
 	return undefined;
 }

@@ -48,7 +48,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CORTEXIDE_CTRL_K_ACTION_ID,
 			f1: true,
-			title: localize2('voidQuickEditAction', 'Void: Quick Edit'),
+			title: localize2('voidQuickEditAction', 'OpenCursor: Quick Edit'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyK,
 				weight: KeybindingWeight.ExternalExtension,
@@ -89,8 +89,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'void.inlineEdit',
 			f1: true,
-			title: localize2('voidInlineEditAction', 'CortexIDE: Inline Edit (AI)'),
-			category: localize2('voidCategory', 'CortexIDE'),
+			title: localize2('voidInlineEditAction', 'OpenCursor: Inline Edit'),
+			category: localize2('voidCategory', 'OpenCursor'),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 				weight: KeybindingWeight.ExternalExtension,

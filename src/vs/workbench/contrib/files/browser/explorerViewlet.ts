@@ -38,6 +38,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { isMouseEvent } from '../../../../base/browser/dom.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
 const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book, localize('openEditorsIcon', 'View icon of the open editors view.'));
@@ -48,6 +49,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IProgressService progressService: IProgressService
 	) {
 		super();
@@ -101,6 +104,20 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			viewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 
+		const noFolder = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY
+			|| this.workspaceContextService.getWorkspace().folders.length === 0;
+		if (noFolder) {
+			const model = this.viewDescriptorService.getViewContainerModel(VIEW_CONTAINER);
+			if (model.allViewDescriptors.some(view => view.id === EmptyView.ID)) {
+				model.setCollapsed(EmptyView.ID, false);
+				model.setVisible(EmptyView.ID, true);
+				this.viewsService.getActiveViewPaneContainerWithId(VIEWLET_ID)?.getView(EmptyView.ID)?.setExpanded(true);
+			}
+			if (!this.viewsService.isViewContainerVisible(VIEWLET_ID)) {
+				void this.viewsService.openViewContainer(VIEWLET_ID, false);
+			}
+		}
+
 		mark('code/didRegisterExplorerViews');
 	}
 
@@ -129,6 +146,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
+			collapsed: false,
 			canToggleVisibility: true,
 			focusCommand: {
 				id: 'workbench.explorer.fileView.focus'

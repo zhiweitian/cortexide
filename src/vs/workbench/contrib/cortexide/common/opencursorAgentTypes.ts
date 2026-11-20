@@ -17,6 +17,8 @@ export interface OpenCursorAgentRunRequest {
 	readonly deepseekApiKey?: string;
 	readonly deepseekEndpoint?: string;
 	readonly deepseekModel?: string;
+	/** Ask, Gather, Plan, or Agent. Agent is the default. */
+	readonly chatMode?: 'normal' | 'gather' | 'plan' | 'agent';
 }
 
 export type OpenCursorAgentStep = {
@@ -43,7 +45,7 @@ export type OpenCursorAgentProgressEvent =
 	| { type: 'llm'; text: string }
 	| { type: 'tool_start'; tool: string; args: Record<string, string> };
 
-export type OpenCursorPatchOp = 'list' | 'accept' | 'reject' | 'get' | 'restore' | 'reapply' | 'canvas' | 'canvas-action';
+export type OpenCursorPatchOp = 'list' | 'accept' | 'reject' | 'get' | 'restore' | 'reapply' | 'canvas' | 'canvas-action' | 'index' | 'index-status' | 'embed' | 'embed-status' | 'context' | 'context-set';
 
 export interface OpenCursorPatchRequest {
 	readonly workspaceRoot: string;
@@ -51,6 +53,8 @@ export interface OpenCursorPatchRequest {
 	readonly runId?: string;
 	readonly patchId?: string;
 	readonly action?: string;
+	readonly path?: string;
+	readonly enabled?: boolean;
 }
 
 export interface OpenCursorPatchListItem {
@@ -70,12 +74,19 @@ export interface OpenCursorPatchResult {
 	readonly at?: 'before' | 'after';
 	readonly canvas?: unknown;
 	readonly text?: string;
+	readonly files?: number;
+	readonly builtAt?: string;
+	readonly chunks?: number;
+	readonly embedder?: string;
+	readonly off?: string[];
 }
 
 export interface OpenCursorCompleteRequest {
 	readonly workspaceRoot: string;
 	readonly text: string;
 	readonly cursor: number;
+	readonly url?: string;
+	readonly model?: string;
 }
 
 export interface OpenCursorCompleteResult {

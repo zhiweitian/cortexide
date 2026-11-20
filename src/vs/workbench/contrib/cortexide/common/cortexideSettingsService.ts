@@ -15,7 +15,8 @@ import { IMetricsService } from './metricsService.js';
 import { getModelCapabilities, ModelOverrides } from './modelCapabilities.js';
 import { isProviderSettingsComplete } from './providerSettingsValidation.js';
 import { VOID_SETTINGS_STORAGE_KEY } from './storageKeys.js';
-import { defaultSettingsOfProvider, FeatureName, ProviderName, ModelSelectionOfFeature, SettingsOfProvider, SettingName, providerNames, localProviderNames, ModelSelection, modelSelectionsEqual, featureNames, CortexideStatefulModelInfo, GlobalSettings, GlobalSettingName, defaultGlobalSettings, ModelSelectionOptions, OptionsOfModelSelection, ChatMode, OverridesOfModel, defaultOverridesOfModel, MCPUserStateOfName as MCPUserStateOfName, MCPUserState } from './cortexideSettingsTypes.js';
+import { defaultSettingsOfProvider, FeatureName, ProviderName, ModelSelectionOfFeature, SettingsOfProvider, SettingName, providerNames, localProviderNames, ModelSelection, modelSelectionsEqual, featureNames, CortexideStatefulModelInfo, GlobalSettings, GlobalSettingName, defaultGlobalSettings, ModelSelectionOptions, OptionsOfModelSelection, ChatMode, OverridesOfModel, defaultOverridesOfModel, MCPUserStateOfName as MCPUserStateOfName, MCPUserState, OpenCursorApiEntry } from './cortexideSettingsTypes.js';
+import { pickOpenCursorSelection, sanitizeOpenCursorApis } from './openCursorApis.js';
 import { pickBestCoderModelName } from './routing/codingModelScore.js';
 
 
@@ -78,6 +79,7 @@ export interface ICortexideSettingsService {
 	toggleModelHidden(providerName: ProviderName, modelName: string): void;
 	addModel(providerName: ProviderName, modelName: string): void;
 	deleteModel(providerName: ProviderName, modelName: string): boolean;
+	saveOpenCursorApis(apis: OpenCursorApiEntry[], apiId: string, model: string): Promise<void>;
 
 	addMCPUserStateOfNames(userStateOfName: MCPUserStateOfName): Promise<void>;
 	removeMCPUserStateOfNames(serverNames: string[]): Promise<void>;
@@ -438,6 +440,26 @@ class VoidSettingsService extends Disposable implements ICortexideSettingsServic
 					readS.settingsOfProvider[providerName].headersJSON = '{}'
 				}
 			}
+
+			const existingApis = sanitizeOpenCursorApis(readS.globalSettings.openCursorApis)
+			if (existingApis.length === 0 && readS.settingsOfProvider.deepseek?.apiKey) {
+				const model = (readS.globalSettings.openCursorModel || 'deepseek-flash').trim()
+				readS.globalSettings.openCursorApis = [{
+					id: 'default',
+					baseUrl: (readS.settingsOfProvider.deepseek.endpoint || 'https://api.deepseek.com').replace(/\/$/, ''),
+					apiKey: readS.settingsOfProvider.deepseek.apiKey,
+					models: model ? [model] : [],
+				}]
+				readS.globalSettings.openCursorApiId = 'default'
+				if (model) readS.globalSettings.openCursorModel = model
+			} else if (existingApis.length > 0) {
+				readS.globalSettings.openCursorApis = existingApis
+				const picked = pickOpenCursorSelection(existingApis, readS.globalSettings.openCursorApiId || '', readS.globalSettings.openCursorModel || '')
+				if (picked) {
+					readS.globalSettings.openCursorApiId = picked.id
+					readS.globalSettings.openCursorModel = picked.model
+				}
+			}
 		}
 
 		catch (e) {
@@ -679,6 +701,39 @@ class VoidSettingsService extends Disposable implements ICortexideSettingsServic
 		this._metricsService.capture('Add Model', { providerName, modelName })
 
 	}
+
+	saveOpenCursorApis = async (apis: OpenCursorApiEntry[], apiId: string, model: string) => {
+		const clean = sanitizeOpenCursorApis(apis)
+		const picked = pickOpenCursorSelection(clean, apiId, model)
+		let deepseek = this.state.settingsOfProvider.deepseek
+		if (picked) {
+			const models = deepseek.models.some(item => item.modelName === picked.model)
+				? deepseek.models
+				: [...deepseek.models, { modelName: picked.model, type: 'custom' as const, isHidden: false }]
+			deepseek = {
+				...deepseek,
+				endpoint: picked.baseUrl,
+				apiKey: picked.apiKey,
+				models,
+			} as unknown as typeof deepseek
+		}
+		this.state = _validatedModelState({
+			modelSelectionOfFeature: this.state.modelSelectionOfFeature,
+			optionsOfModelSelection: this.state.optionsOfModelSelection,
+			settingsOfProvider: { ...this.state.settingsOfProvider, deepseek },
+			globalSettings: {
+				...this.state.globalSettings,
+				openCursorApis: clean,
+				openCursorApiId: picked?.id ?? '',
+				openCursorModel: picked?.model ?? '',
+			},
+			overridesOfModel: this.state.overridesOfModel,
+			mcpUserStateOfName: this.state.mcpUserStateOfName,
+		})
+		await this._storeState()
+		this._onDidChangeState.fire()
+	}
+
 	deleteModel(providerName: ProviderName, modelName: string): boolean {
 		const { models } = this.state.settingsOfProvider[providerName]
 		const delIdx = models.findIndex(m => m.modelName === modelName)

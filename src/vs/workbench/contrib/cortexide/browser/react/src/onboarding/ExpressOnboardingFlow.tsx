@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { useAccessor } from '../util/services.js';
+import { newOpenCursorApiId } from '../../../../common/openCursorApis.js';
 
 interface ExpressOnboardingFlowProps {
 	onCustomize: () => void;
@@ -30,10 +31,12 @@ export const ExpressOnboardingFlow = ({ onDismiss }: ExpressOnboardingFlowProps)
 			return;
 		}
 		setError('');
-		await settingsService.setSettingOfProvider('deepseek', 'endpoint', url);
-		await settingsService.setSettingOfProvider('deepseek', 'apiKey', key);
-		settingsService.addModel('deepseek', modelName);
-		settingsService.setGlobalSetting('openCursorModel', modelName);
+		await settingsService.saveOpenCursorApis([{
+			id: newOpenCursorApiId(),
+			baseUrl: url,
+			apiKey: key,
+			models: [modelName],
+		}], '', modelName);
 		settingsService.setGlobalSetting('isOnboardingComplete', true);
 		onDismiss();
 	};
@@ -41,7 +44,7 @@ export const ExpressOnboardingFlow = ({ onDismiss }: ExpressOnboardingFlowProps)
 	return (
 		<div className="mx-auto w-full max-w-md rounded-xl border border-void-border-3 bg-void-bg-2 px-6 py-5 text-void-fg-1">
 			<h1 className="text-lg font-semibold">OpenCursor</h1>
-			<p className="mt-1 text-sm text-void-fg-3">API URL, key, and model. Nothing else.</p>
+			<p className="mt-1 text-sm text-void-fg-3">API URL, key, and a model. Add more keys and models later in Settings.</p>
 			<label className="mt-4 block text-xs text-void-fg-3">API URL</label>
 			<input className="mt-1 w-full rounded border border-void-border-3 bg-void-bg-1 px-3 py-2 text-sm" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
 			<label className="mt-3 block text-xs text-void-fg-3">API key</label>

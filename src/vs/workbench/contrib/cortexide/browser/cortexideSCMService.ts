@@ -191,9 +191,9 @@ class GenerateCommitMessageAction extends Action2 {
 	constructor() {
 		super({
 			id: 'void.generateCommitMessageAction',
-			title: localize2('voidCommitMessagePrompt', 'CortexIDE: Generate Commit Message'),
+			title: localize2('voidCommitMessagePrompt', 'OpenCursor: Generate Commit Message'),
 			icon: ThemeIcon.fromId('sparkle'),
-			tooltip: localize2('voidCommitMessagePromptTooltip', 'CortexIDE: Generate Commit Message'),
+			tooltip: localize2('voidCommitMessagePromptTooltip', 'OpenCursor: Generate Commit Message'),
 			f1: true,
 			menu: [{
 				id: MenuId.SCMInputBox,
@@ -213,9 +213,9 @@ class LoadingGenerateCommitMessageAction extends Action2 {
 	constructor() {
 		super({
 			id: 'void.loadingGenerateCommitMessageAction',
-			title: localize2('voidCommitMessagePromptCancel', 'CortexIDE: Cancel Commit Message Generation'),
+			title: localize2('voidCommitMessagePromptCancel', 'OpenCursor: Cancel Commit Message Generation'),
 			icon: ThemeIcon.fromId('stop-circle'),
-			tooltip: localize2('voidCommitMessagePromptCancelTooltip', 'CortexIDE: Cancel Commit Message Generation'),
+			tooltip: localize2('voidCommitMessagePromptCancelTooltip', 'OpenCursor: Cancel Commit Message Generation'),
 			f1: false, //Having a cancel command in the command palette is more confusing than useful.
 			menu: [{
 				id: MenuId.SCMInputBox,

@@ -179,6 +179,8 @@ export const CommandBarInChat = () => {
 		</button>
 	);
 
+	if (numFilesChanged === 0) return null
+
 	return (
 		<>
 			<div className='px-2'>
